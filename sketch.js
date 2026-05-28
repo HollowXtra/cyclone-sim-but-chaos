@@ -107,6 +107,7 @@ function setup(){
 
     upgradeLegacySaves();
     UI.init();
+    fitCanvasToWindow();
 }
 
 function draw(){

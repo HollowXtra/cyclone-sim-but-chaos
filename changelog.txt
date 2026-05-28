@@ -1,5 +1,7 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.4.27 (2026-05-27):
+    * Fixed the Windows app leaving the simulator stuck in the top-left corner of larger windows
 v0.4.26 (2026-05-27):
     + Added "Realistic Chaos" simulation mode
         > Adds ocean heat content and convective instability environmental layers

@@ -29,23 +29,38 @@ function rescaleCanvases(s){
     for(let [buffer, metadata] of buffers){
         if(!metadata.alwaysFull){
             buffer.resizeCanvas(floor(metadata.baseWidth*s),floor(metadata.baseHeight*s));
+            buffer.resetMatrix();
             if(!metadata.noScale) buffer.scale(s);
         }
     }
     resizeCanvas(floor(WIDTH*s),floor(HEIGHT*s));
 }
 
+function fitCanvasToWindow(){
+    if(typeof scaler === 'undefined' || !buffers) return;
+    let targetScale = min(
+        window.innerWidth / WIDTH,
+        window.innerHeight / HEIGHT
+    );
+    targetScale = max(targetScale,0.1);
+    if(abs(targetScale-scaler)<0.001) return;
+    scaler = targetScale;
+    rescaleCanvases(scaler);
+    if(UI.viewBasin){
+        refreshTracks(true);
+        UI.viewBasin.env.displayLayer();
+    }
+}
+
+function canvasElement(){
+    return canvas && canvas.elt ? canvas.elt : canvas;
+}
+
 function toggleFullscreen(){
-    if(document.fullscreenElement===canvas || deviceOrientation===PORTRAIT) document.exitFullscreen();
+    let c = canvasElement();
+    if(document.fullscreenElement===c || deviceOrientation===PORTRAIT) document.exitFullscreen();
     else{
-        canvas.requestFullscreen().then(function(){
-            scaler = displayWidth/WIDTH;
-            rescaleCanvases(scaler);
-            if(UI.viewBasin){
-                refreshTracks(true);
-                UI.viewBasin.env.displayLayer();
-            }
-        });
+        c.requestFullscreen().then(fitCanvasToWindow);
     }
 }
 
@@ -236,12 +251,9 @@ function upgradeLegacySaves(){
 }
 
 document.onfullscreenchange = function(){
-    if(document.fullscreenElement===null){
-        scaler = 1;
-        rescaleCanvases(scaler);
-        if(UI.viewBasin){
-            refreshTracks(true);
-            UI.viewBasin.env.displayLayer();
-        }
-    }
+    fitCanvasToWindow();
 };
+
+function windowResized(){
+    fitCanvasToWindow();
+}

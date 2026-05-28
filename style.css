@@ -1,3 +1,10 @@
+html,
+body{
+	width: 100%;
+	height: 100%;
+	margin: 0;
+}
+
 body{
 	background: #BBB;
 	background: -o-linear-gradient(#BBB,#F3F3F3);
@@ -5,6 +12,14 @@ body{
 	background: -moz-linear-gradient(#BBB,#F3F3F3);
 	background: linear-gradient(#BBB,#F3F3F3);
 	font-family: Calibri, Arial;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+canvas{
+	display: block;
 }
 
 a{
