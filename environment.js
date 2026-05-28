@@ -517,6 +517,7 @@ class Land{
         this.detailNoise = new NoiseChannel(5,0.55,38);
         this.ridgeNoise = new NoiseChannel(6,0.5,170);
         this.oceanTile = [];
+        this.cityLabels = [];
         this.mapDefinition = undefined;
         this.drawn = false;
         this.snowDrawn = false;
@@ -709,6 +710,7 @@ class Land{
             }
             img.updatePixels();
         }
+        this.generateCityLabels();
     }
 
     *draw(){
@@ -886,6 +888,91 @@ class Land{
         }
         landShadows.updatePixels();
         this.shaderDrawn = true;
+    }
+
+    generateCityLabels(){
+        this.cityLabels = [];
+        let tooClose = (x,y,minDist)=>{
+            for(let c of this.cityLabels){
+                if(dist(x,y,c.x,c.y) < minDist) return true;
+            }
+            return false;
+        };
+        if(this.earth){
+            let west = this.westBound;
+            let east = this.eastBound;
+            let north = this.northBound;
+            let south = this.southBound;
+            let inSector = c=>{
+                let long = c.longitude;
+                let inLong = east < west ? long >= west || long <= east : long >= west && long <= east;
+                return inLong && c.latitude <= north && c.latitude >= south;
+            };
+            for(let c of EARTH_CITY_LABELS){
+                if(!inSector(c)) continue;
+                let pos = Coordinate.convertToXY(this.basin.mapType,c.longitude,c.latitude);
+                if(!coordinateInCanvas(pos.x,pos.y) || tooClose(pos.x,pos.y,46)) continue;
+                this.cityLabels.push({
+                    name: c.name,
+                    x: pos.x,
+                    y: pos.y
+                });
+            }
+            return;
+        }
+
+        let candidates = [];
+        let seed = this.basin.seed || 1;
+        let score = (x,y)=>{
+            let n = sin(seed*0.00013 + x*12.9898 + y*78.233)*43758.5453;
+            return n - floor(n);
+        };
+        let isLand = (x,y)=>{
+            if(!coordinateInCanvas(x,y)) return false;
+            return this.get(Coordinate.convertFromXY(this.basin.mapType,x,y)) > 0.5;
+        };
+        for(let x=36;x<WIDTH-36;x+=24){
+            for(let y=36;y<HEIGHT-36;y+=24){
+                if(!isLand(x,y)) continue;
+                let coast = false;
+                for(let xo=-22;xo<=22;xo+=22){
+                    for(let yo=-22;yo<=22;yo+=22){
+                        if((xo || yo) && !isLand(x+xo,y+yo)) coast = true;
+                    }
+                }
+                if(coast) candidates.push({x,y,score: score(x,y)});
+            }
+        }
+        candidates.sort((a,b)=>b.score-a.score);
+        let count = min(14,candidates.length);
+        for(let c of candidates){
+            if(this.cityLabels.length >= count) break;
+            if(tooClose(c.x,c.y,64)) continue;
+            let name = GENERATED_CITY_NAMES[this.cityLabels.length % GENERATED_CITY_NAMES.length];
+            this.cityLabels.push({name,x: c.x,y: c.y});
+        }
+    }
+
+    drawCityLabels(){
+        if(!this.cityLabels || this.cityLabels.length < 1) return;
+        push();
+        textSize(10);
+        textStyle(BOLD);
+        textAlign(LEFT,CENTER);
+        for(let c of this.cityLabels){
+            if(!coordinateInCanvas(c.x,c.y)) continue;
+            stroke(0,185);
+            strokeWeight(3);
+            fill(COLORS.cityLabel);
+            text(c.name,c.x+6,c.y-4);
+            noStroke();
+            fill(COLORS.cityDot);
+            ellipse(c.x,c.y,5,5);
+            fill(COLORS.cityLabel);
+            ellipse(c.x,c.y,2,2);
+        }
+        textStyle(NORMAL);
+        pop();
     }
 
     tileContainsOcean(x,y){

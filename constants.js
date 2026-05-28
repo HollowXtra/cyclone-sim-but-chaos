@@ -1,7 +1,7 @@
 const TITLE = "Cyclone Simulator";
-const VERSION_NUMBER = "0.4.28";
+const VERSION_NUMBER = "0.4.29";
 
-const SAVE_FORMAT = 8;  // Format #8 in use starting in v0.4.28
+const SAVE_FORMAT = 9;  // Format #9 in use starting in v0.4.29
 const EARLIEST_COMPATIBLE_FORMAT = 0;
 const ENVDATA_COMPATIBLE_FORMAT = 0;
 
@@ -325,6 +325,90 @@ const FORMAT_WITH_SCALES = 6;
 const FORMAT_WITH_EARTH_SUBBASINS = 7;
 const FORMAT_WITH_LONG_LAT = 7;
 const FORMAT_WITH_CUSTOM_MAPS = 8;
+const FORMAT_WITH_LANDFALL_MARKERS = 9;
+
+const GLOBAL_CHAT_TOPIC = "cyclone-sim-but-chaos-global-v1";
+const GLOBAL_CHAT_MAX_MESSAGES = 45;
+const GLOBAL_CHAT_NAME_KEY = "cyclone-sim-global-chat-name";
+
+const EARTH_CITY_LABELS = [
+    {name: "Miami", longitude: -80.19, latitude: 25.76},
+    {name: "Tampa", longitude: -82.46, latitude: 27.95},
+    {name: "New Orleans", longitude: -90.07, latitude: 29.95},
+    {name: "Houston", longitude: -95.37, latitude: 29.76},
+    {name: "Corpus Christi", longitude: -97.40, latitude: 27.80},
+    {name: "Veracruz", longitude: -96.14, latitude: 19.17},
+    {name: "Cancun", longitude: -86.85, latitude: 21.16},
+    {name: "Havana", longitude: -82.37, latitude: 23.11},
+    {name: "Kingston", longitude: -76.79, latitude: 17.97},
+    {name: "San Juan", longitude: -66.11, latitude: 18.47},
+    {name: "Bermuda", longitude: -64.75, latitude: 32.30},
+    {name: "Charleston", longitude: -79.93, latitude: 32.78},
+    {name: "Cape Hatteras", longitude: -75.53, latitude: 35.25},
+    {name: "New York", longitude: -74.01, latitude: 40.71},
+    {name: "Boston", longitude: -71.06, latitude: 42.36},
+    {name: "Halifax", longitude: -63.58, latitude: 44.65},
+    {name: "Los Angeles", longitude: -118.24, latitude: 34.05},
+    {name: "San Diego", longitude: -117.16, latitude: 32.72},
+    {name: "Cabo San Lucas", longitude: -109.91, latitude: 22.89},
+    {name: "Acapulco", longitude: -99.89, latitude: 16.86},
+    {name: "Puerto Vallarta", longitude: -105.23, latitude: 20.65},
+    {name: "Honolulu", longitude: -157.86, latitude: 21.31},
+    {name: "Hilo", longitude: -155.09, latitude: 19.71},
+    {name: "Tokyo", longitude: 139.69, latitude: 35.68},
+    {name: "Osaka", longitude: 135.50, latitude: 34.69},
+    {name: "Taipei", longitude: 121.57, latitude: 25.03},
+    {name: "Manila", longitude: 120.98, latitude: 14.60},
+    {name: "Hong Kong", longitude: 114.17, latitude: 22.32},
+    {name: "Shanghai", longitude: 121.47, latitude: 31.23},
+    {name: "Guam", longitude: 144.79, latitude: 13.44},
+    {name: "Saipan", longitude: 145.75, latitude: 15.18},
+    {name: "Da Nang", longitude: 108.22, latitude: 16.05},
+    {name: "Mumbai", longitude: 72.88, latitude: 19.08},
+    {name: "Karachi", longitude: 67.01, latitude: 24.86},
+    {name: "Muscat", longitude: 58.41, latitude: 23.59},
+    {name: "Chennai", longitude: 80.27, latitude: 13.08},
+    {name: "Kolkata", longitude: 88.36, latitude: 22.57},
+    {name: "Dhaka", longitude: 90.41, latitude: 23.81},
+    {name: "Yangon", longitude: 96.16, latitude: 16.87},
+    {name: "Perth", longitude: 115.86, latitude: -31.95},
+    {name: "Darwin", longitude: 130.84, latitude: -12.46},
+    {name: "Brisbane", longitude: 153.03, latitude: -27.47},
+    {name: "Cairns", longitude: 145.77, latitude: -16.92},
+    {name: "Sydney", longitude: 151.21, latitude: -33.87},
+    {name: "Port Moresby", longitude: 147.18, latitude: -9.44},
+    {name: "Noumea", longitude: 166.45, latitude: -22.27},
+    {name: "Suva", longitude: 178.44, latitude: -18.12},
+    {name: "Apia", longitude: -171.75, latitude: -13.83},
+    {name: "Papeete", longitude: -149.57, latitude: -17.54},
+    {name: "Auckland", longitude: 174.76, latitude: -36.85},
+    {name: "Cape Town", longitude: 18.42, latitude: -33.92},
+    {name: "Maputo", longitude: 32.59, latitude: -25.97},
+    {name: "Antananarivo", longitude: 47.51, latitude: -18.88},
+    {name: "Port Louis", longitude: 57.50, latitude: -20.16},
+    {name: "Saint-Denis", longitude: 55.45, latitude: -20.88},
+    {name: "Moroni", longitude: 43.26, latitude: -11.70},
+    {name: "Rio de Janeiro", longitude: -43.17, latitude: -22.91},
+    {name: "Santos", longitude: -46.33, latitude: -23.96},
+    {name: "Salvador", longitude: -38.50, latitude: -12.97},
+    {name: "Fortaleza", longitude: -38.54, latitude: -3.73},
+    {name: "Lisbon", longitude: -9.14, latitude: 38.72},
+    {name: "Barcelona", longitude: 2.17, latitude: 41.38},
+    {name: "Marseille", longitude: 5.37, latitude: 43.30},
+    {name: "Rome", longitude: 12.50, latitude: 41.90},
+    {name: "Athens", longitude: 23.73, latitude: 37.98},
+    {name: "Istanbul", longitude: 28.98, latitude: 41.01},
+    {name: "Tunis", longitude: 10.18, latitude: 36.81},
+    {name: "Algiers", longitude: 3.06, latitude: 36.75}
+];
+
+const GENERATED_CITY_NAMES = [
+    "Port Azure", "Bayhaven", "Stormreach", "Cape Vela", "Mariner's Rest",
+    "Harbor Nine", "Isla Verde", "New Calder", "Tidewatch", "Windward",
+    "Laguna Alta", "Ridgeport", "Seabright", "Coral Gate", "Meridian",
+    "Holloway", "Eastbreak", "Sable Point", "Driftwood", "Northstar",
+    "Southmark", "Crescent Bay", "Iron Coast", "Pelican Point", "Aurora"
+];
 
 // Legacy saving/loading-related constants (backwards-compatibility)
 
@@ -394,4 +478,16 @@ function defineColors(){    // Since p5 color() function doesn't work until setu
     COLORS.UI.nonSelectedInput = color(70);
     COLORS.UI.input = color(255);
     COLORS.UI.loadingSymbol = color(0,40,85);
+    COLORS.UI.buttonStroke = color(45,70,90,120);
+    COLORS.UI.menuPanel = color(6,18,32,205);
+    COLORS.UI.menuPanel2 = color(240,248,250,225);
+    COLORS.UI.menuText = color(240,248,255);
+    COLORS.UI.menuMuted = color(180,205,220);
+    COLORS.UI.accent = color(255,176,42);
+    COLORS.UI.greenAccent = color(95,220,165);
+    COLORS.UI.chatMine = color(215,240,255,230);
+    COLORS.UI.chatOther = color(246,248,240,230);
+    COLORS.cityLabel = color(255,248,205);
+    COLORS.cityDot = color(30,35,45);
+    COLORS.landfallMarker = color(255,126,28);
 }

@@ -30,6 +30,7 @@ class Storm{
         this.deaths = 0;
         this.damage = 0;
         this.landfalls = 0;
+        this.landfallRecords = [];
         if(!this.current && data instanceof LoadData) this.load(data);
     }
 
@@ -372,6 +373,7 @@ class Storm{
             this.damage = 0;
             this.deaths = 0;
             this.landfalls = 0;
+            this.landfallRecords = [];
             if(wasTCB4Update) refreshTracks(true);
         }
         let newACE = 0;
@@ -583,7 +585,8 @@ class Storm{
             'birthTime',
             'deaths',
             'damage',
-            'landfalls'
+            'landfalls',
+            'landfallRecords'
         ]) obj[p] = this[p];
         obj.record = StormData.saveArr(this.record);
         obj.designations = {};
@@ -616,12 +619,14 @@ class Storm{
                     'birthTime',
                     'deaths',
                     'damage',
-                    'landfalls'
+                    'landfalls',
+                    'landfallRecords'
                 ]) this[p] = obj[p];
                 if(!this.birthTime) this.birthTime = 0;
                 if(!this.deaths) this.deaths = 0;
                 if(!this.damage) this.damage = 0;
                 if(!this.landfalls) this.landfalls = 0;
+                if(!(this.landfallRecords instanceof Array)) this.landfallRecords = [];
                 if(obj.depressionNum!==undefined) depNum = obj.depressionNum;
                 if(obj.nameNum!==undefined) nameNum = obj.nameNum;
                 if(obj.designations!==undefined) designations = obj.designations;
@@ -1174,11 +1179,23 @@ class ActiveSystem extends StormData{
             let lf = 0;
             if(!prevland && lnd) lf = 1;
             let sub = land.getSubBasin(Coordinate.convertFromXY(basin.mapType,x,y));
-            if(!this.fetchStorm().inBasinTC || basin.subInBasin(sub)){
-                this.fetchStorm().damage += dam;
-                this.fetchStorm().damage = round(this.fetchStorm().damage*100)/100;
-                this.fetchStorm().deaths += ded;
-                this.fetchStorm().landfalls += lf;
+            let storm = this.fetchStorm();
+            if(!storm.inBasinTC || basin.subInBasin(sub)){
+                storm.damage += dam;
+                storm.damage = round(storm.damage*100)/100;
+                storm.deaths += ded;
+                storm.landfalls += lf;
+                if(lf){
+                    if(!(storm.landfallRecords instanceof Array)) storm.landfallRecords = [];
+                    storm.landfallRecords.push({
+                        x: floor(x),
+                        y: floor(y),
+                        tick: basin.tick,
+                        wind: round(this.windSpeed/WINDSPEED_ROUNDING)*WINDSPEED_ROUNDING,
+                        pressure: floor(this.pressure),
+                        subBasin: sub
+                    });
+                }
             }
             let seas = basin.fetchSeason(-1,true,true);
             for(let subId of basin.forSubBasinChain(sub)){

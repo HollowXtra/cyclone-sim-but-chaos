@@ -1,5 +1,10 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.4.29 (2026-05-28):
+    + Added a cinematic intro and revamped main menu
+    + Added online global chat through an opt-in public ntfy.sh topic
+    + Added city labels, landfall map markers, and a live season ACE HUD readout
+    * Re-polished buttons and menu presentation
 v0.4.28 (2026-05-27):
     + Added a custom procedural map type with layout, land amount, coastline chaos, and mountain controls
     + Added a start month option for new basins

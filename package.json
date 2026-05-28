@@ -1,6 +1,6 @@
 {
   "name": "cyclone-sim-but-chaos",
-  "version": "0.4.28",
+  "version": "0.4.29",
   "description": "A p5.js tropical cyclone simulation game",
   "author": "HollowXtra",
   "private": true,

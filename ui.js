@@ -70,15 +70,18 @@ class UI{
             rect(0,0,this.width,this.height);
         };
         s.button = (txt,box,size,grey)=>{
-            noStroke();
+            let radius = min(8,this.height/3);
             if(box){
+                stroke(COLORS.UI.buttonStroke);
                 fill(COLORS.UI.buttonBox);
-                s.fullRect();
+                rect(0,0,this.width,this.height,radius);
             }
             if(this.isHovered()){
+                noStroke();
                 fill(COLORS.UI.buttonHover);
-                s.fullRect();
+                rect(0,0,this.width,this.height,radius);
             }
+            noStroke();
             if(grey) fill(COLORS.UI.greyText);
             else fill(COLORS.UI.text);
             textAlign(CENTER,CENTER);
@@ -301,10 +304,77 @@ UI.init = function(){
     // hoist!
 
     let yearselbox;
+    if(GlobalChat && !GlobalChat.name) GlobalChat.init();
+
+    let drawStormSwirl = (cx,cy,r,t,c)=>{
+        push();
+        translate(cx,cy);
+        rotate(t);
+        noFill();
+        stroke(c);
+        for(let i=0;i<5;i++){
+            strokeWeight(max(1,3-i*0.35));
+            arc(0,0,r-i*12,r*0.62-i*8,i*0.55,i*0.55+PI*1.2);
+        }
+        noStroke();
+        fill(255,235);
+        ellipse(0,0,r*0.16,r*0.16);
+        pop();
+    };
+
+    let drawMenuBackdrop = ()=>{
+        let t = millis()/1000;
+        background(8,34,73);
+        noStroke();
+        for(let i=0;i<10;i++){
+            let y = i*64 - (t*16+i*7)%64;
+            fill(i%2 ? 11 : 15, 55+i*5, 95+i*6, 120);
+            rect(0,y,WIDTH,36);
+        }
+        stroke(70,130,170,95);
+        strokeWeight(1);
+        for(let x=0;x<WIDTH;x+=80) line(x,0,x,HEIGHT);
+        for(let y=0;y<HEIGHT;y+=60) line(0,y,WIDTH,y);
+        noStroke();
+        fill(31,125,90,190);
+        beginShape();
+        vertex(0,HEIGHT*0.75);
+        bezierVertex(110,HEIGHT*0.66,145,HEIGHT*0.54,250,HEIGHT*0.60);
+        bezierVertex(360,HEIGHT*0.67,395,HEIGHT*0.43,520,HEIGHT*0.49);
+        bezierVertex(640,HEIGHT*0.55,690,HEIGHT*0.74,820,HEIGHT*0.66);
+        bezierVertex(900,HEIGHT*0.62,940,HEIGHT*0.69,WIDTH,HEIGHT*0.64);
+        vertex(WIDTH,HEIGHT);
+        vertex(0,HEIGHT);
+        endShape(CLOSE);
+        fill(210,205,120,160);
+        beginShape();
+        vertex(0,HEIGHT*0.79);
+        bezierVertex(125,HEIGHT*0.70,170,HEIGHT*0.60,250,HEIGHT*0.65);
+        bezierVertex(380,HEIGHT*0.73,405,HEIGHT*0.50,520,HEIGHT*0.55);
+        bezierVertex(650,HEIGHT*0.62,695,HEIGHT*0.78,825,HEIGHT*0.70);
+        bezierVertex(900,HEIGHT*0.67,940,HEIGHT*0.72,WIDTH,HEIGHT*0.68);
+        vertex(WIDTH,HEIGHT*0.74);
+        bezierVertex(900,HEIGHT*0.79,845,HEIGHT*0.76,780,HEIGHT*0.80);
+        bezierVertex(655,HEIGHT*0.87,600,HEIGHT*0.68,505,HEIGHT*0.64);
+        bezierVertex(385,HEIGHT*0.58,350,HEIGHT*0.80,235,HEIGHT*0.72);
+        bezierVertex(130,HEIGHT*0.65,85,HEIGHT*0.80,0,HEIGHT*0.86);
+        endShape(CLOSE);
+        drawStormSwirl(WIDTH*0.73,HEIGHT*0.24,150,t*0.65,COLORS.UI.menuMuted);
+        drawStormSwirl(WIDTH*0.22,HEIGHT*0.35,90,-t*0.9,COLORS.UI.greenAccent);
+        fill(255,255,255,18);
+        ellipse(WIDTH*0.74,HEIGHT*0.25,260,160);
+        fill(0,0,0,85);
+        rect(0,0,WIDTH,HEIGHT);
+    };
 
     // "scene" wrappers
 
-    mainMenu = new UI(null,0,0,WIDTH,HEIGHT);
+    introMenu = new UI(null,0,0,WIDTH,HEIGHT,function(){
+        drawMenuBackdrop();
+    });
+    mainMenu = new UI(null,0,0,WIDTH,HEIGHT,function(){
+        drawMenuBackdrop();
+    },undefined,false);
     basinCreationMenu = new UI(null,0,0,WIDTH,HEIGHT,undefined,function(){
         yearselbox.enterFunc();
     },false);
@@ -312,6 +382,61 @@ UI.init = function(){
     loadMenu = new UI(null,0,0,WIDTH,HEIGHT,undefined,undefined,false);
     settingsMenu = new UI(null,0,0,WIDTH,HEIGHT,undefined,undefined,false);
     let desigSystemEditor = new UI(null,0,0,WIDTH,HEIGHT,undefined,undefined,false);
+    let renderLandfallMarkers = ()=>{
+        if(!(UI.viewBasin instanceof Basin)) return;
+        let basin = UI.viewBasin;
+        let seas = basin.fetchSeason(viewTick,true);
+        if(!(seas instanceof Season)) return;
+        let systems = selectedStorm ? [selectedStorm] : Array.from(seas.forSystems(true));
+        let hovered = null;
+        push();
+        textSize(10);
+        textStyle(BOLD);
+        textAlign(CENTER,CENTER);
+        for(let storm of systems){
+            if(!(storm instanceof Storm) || !(storm.landfallRecords instanceof Array)) continue;
+            for(let rec of storm.landfallRecords){
+                if(!rec || rec.tick > viewTick || basin.getSeason(rec.tick) !== basin.getSeason(viewTick)) continue;
+                let x = rec.x;
+                let y = rec.y;
+                if(!coordinateInCanvas(x,y)) continue;
+                stroke(0,210);
+                strokeWeight(3);
+                fill(COLORS.landfallMarker);
+                triangle(x,y-9,x-8,y+7,x+8,y+7);
+                noStroke();
+                fill(30,20,10);
+                text("LF",x,y+2);
+                if(dist(getMouseX(),getMouseY(),x,y) < 14)
+                    hovered = {storm, rec};
+            }
+        }
+        textStyle(NORMAL);
+        pop();
+        if(hovered){
+            let rec = hovered.rec;
+            let storm = hovered.storm;
+            let label = storm.getFullNameByTick(rec.tick) + "\n" +
+                formatDate(basin.tickMoment(rec.tick)) + "\n" +
+                displayWindspeed(rec.wind) + " / " + rec.pressure + " hPa";
+            let w = 0;
+            textSize(12);
+            let lines = label.split("\n");
+            for(let l of lines) w = max(w,textWidth(l));
+            w += 14;
+            let h = lines.length*15 + 10;
+            let x = constrain(rec.x + 14,4,WIDTH-w-4);
+            let y = constrain(rec.y - h - 10,34,HEIGHT-h-34);
+            fill(COLORS.UI.menuPanel2);
+            stroke(COLORS.UI.buttonStroke);
+            rect(x,y,w,h,6);
+            noStroke();
+            fill(COLORS.UI.text);
+            textAlign(LEFT,TOP);
+            for(let i=0;i<lines.length;i++)
+                text(lines[i],x+7,y+5+i*15);
+        }
+    };
     primaryWrapper = new UI(null,0,0,WIDTH,HEIGHT,function(s){
         if(UI.viewBasin instanceof Basin){
             let basin = UI.viewBasin;
@@ -358,6 +483,8 @@ UI.init = function(){
             }
             // let sub = land.getSubBasin(getMouseX(),getMouseY());
             // if(basin.subBasins[sub] instanceof SubBasin && basin.subBasins[sub].mapOutline) drawBuffer(basin.subBasins[sub].mapOutline);   // test
+            land.drawCityLabels();
+            renderLandfallMarkers();
             drawBuffer(tracks);
             drawBuffer(forecastTracks);
             drawBuffer(stormIcons);
@@ -448,36 +575,209 @@ UI.init = function(){
         s.fullRect();
     },true,false);
 
-    // main menu
-
-    mainMenu.append(false,WIDTH/2,HEIGHT/4,0,0,function(s){  // title text
-        fill(COLORS.UI.text);
+    globalChatPanel = new UI(null,0,0,WIDTH,HEIGHT,function(s){
+        fill(0,130);
         noStroke();
-        textAlign(CENTER,CENTER);
-        textSize(36);
-        text(TITLE,0,0);
-        textSize(18);
-        textStyle(ITALIC);
-        text("Simulate your own monster storms!",0,40);
+        s.fullRect();
+        let left = WIDTH/2-250;
+        let top = 44;
+        let panelW = 500;
+        let panelH = 452;
+        fill(COLORS.UI.menuPanel2);
+        stroke(COLORS.UI.buttonStroke);
+        rect(left,top,panelW,panelH,8);
+        noStroke();
+        fill(COLORS.UI.text);
+        textAlign(LEFT,TOP);
+        textSize(24);
+        text("Global Chat",left+18,top+14);
+        textSize(13);
+        fill(COLORS.UI.greyText);
+        text(GlobalChat.status,left+20,top+46);
+        textAlign(RIGHT,TOP);
+        text("public topic",left+panelW-20,top+46);
+
+        let msgLeft = left+18;
+        let msgTop = top+76;
+        let msgW = panelW-36;
+        let msgH = 278;
+        fill(255,230);
+        stroke(COLORS.UI.buttonStroke);
+        rect(msgLeft,msgTop,msgW,msgH,6);
+        noStroke();
+        textSize(12);
+        let y = msgTop+10;
+        let visible = GlobalChat.messages.slice(-11);
+        for(let msg of visible){
+            let prefix = msg.system ? "" : msg.name + ": ";
+            let line = wrapText(prefix + msg.text,msgW-22);
+            let h = countTextLines(line)*14 + 8;
+            if(y+h > msgTop+msgH-6) break;
+            fill(msg.system ? color(235,240,244,210) : msg.mine ? COLORS.UI.chatMine : COLORS.UI.chatOther);
+            rect(msgLeft+8,y,msgW-16,h,5);
+            fill(msg.system ? COLORS.UI.greyText : COLORS.UI.text);
+            textAlign(LEFT,TOP);
+            text(line,msgLeft+15,y+4);
+            y += h + 5;
+        }
+        fill(COLORS.UI.greyText);
+        textSize(11);
+        text("Messages are relayed through ntfy.sh and are visible to anyone on the topic.",left+18,top+panelH-24);
+    },true,false);
+
+    globalChatPanel.append(false,WIDTH/2+214,54,24,24,function(s){
+        s.button("X",true,16);
+    },function(){
+        globalChatPanel.hide();
     });
 
-    mainMenu.append(false,WIDTH/2-100,HEIGHT/2-20,200,40,function(s){    // "New Basin" button
-        s.button('New Basin',true,24);
+    let chatNameInput = globalChatPanel.append(false,WIDTH/2-232,410,135,30,[14,18,function(){
+        this.value = GlobalChat.setName(this.value);
+    }]);
+    chatNameInput.value = GlobalChat.name;
+
+    let chatMessageInput = globalChatPanel.append(false,WIDTH/2-88,410,238,30,[14,180,function(){
+        let msg = this.value;
+        let name = chatNameInput.value;
+        GlobalChat.send(msg,name).then(sent=>{
+            if(sent){
+                chatMessageInput.value = "";
+                if(UI.focusedInput === chatMessageInput){
+                    UI.inputData.value = "";
+                    UI.setInputCursorPosition(0);
+                }
+            }
+        });
+    }]);
+
+    globalChatPanel.append(false,WIDTH/2+160,410,72,30,function(s){
+        s.button("Send",true,15,!GlobalChat.connected);
+    },function(){
+        chatMessageInput.enterFunc();
+    });
+
+    globalChatPanel.append(false,WIDTH/2-232,374,150,28,function(s){
+        let label = GlobalChat.connected ? "Disconnect" : GlobalChat.connecting ? "Connecting" : "Connect";
+        s.button(label,true,15);
+    },function(){
+        if(GlobalChat.connected || GlobalChat.connecting) GlobalChat.disconnect();
+        else GlobalChat.connect();
+    });
+
+    // main menu
+
+    introMenu.append(false,70,72,520,160,function(){
+        noStroke();
+        fill(COLORS.UI.menuText);
+        textAlign(LEFT,TOP);
+        textStyle(BOLD);
+        textSize(48);
+        text(TITLE,0,0);
+        textStyle(NORMAL);
+        textSize(18);
+        fill(COLORS.UI.menuMuted);
+        text("Chaos forecast desk",2,62);
+        textSize(13);
+        fill(COLORS.UI.accent);
+        text("v" + VERSION_NUMBER,2,92);
+    },true);
+
+    introMenu.append(false,70,260,220,44,function(s){
+        fill(COLORS.UI.accent);
+        stroke(255,220,125,150);
+        rect(0,0,this.width,this.height,8);
+        noStroke();
+        fill(10,22,32);
+        textAlign(CENTER,CENTER);
+        textSize(22);
+        text("Enter",this.width/2,this.height/2);
+    },function(){
+        introMenu.hide();
+        mainMenu.show();
+    }).append(false,0,56,220,34,function(s){
+        fill(COLORS.UI.menuPanel);
+        stroke(COLORS.UI.buttonStroke);
+        rect(0,0,this.width,this.height,8);
+        noStroke();
+        fill(COLORS.UI.menuText);
+        textAlign(CENTER,CENTER);
+        textSize(16);
+        text("Global Chat",this.width/2,this.height/2);
+    },function(){
+        globalChatPanel.show();
+    });
+
+    mainMenu.append(false,60,48,390,120,function(){
+        fill(COLORS.UI.menuText);
+        noStroke();
+        textAlign(LEFT,TOP);
+        textStyle(BOLD);
+        textSize(42);
+        text(TITLE,0,0);
+        textStyle(NORMAL);
+        fill(COLORS.UI.menuMuted);
+        textSize(15);
+        text("v" + VERSION_NUMBER + "  |  Command Menu",2,58);
+    },true);
+
+    mainMenu.append(false,58,175,260,248,function(){
+        fill(COLORS.UI.menuPanel);
+        stroke(255,255,255,55);
+        rect(0,0,this.width,this.height,8);
+        noStroke();
+        fill(COLORS.UI.menuText);
+        textAlign(LEFT,TOP);
+        textSize(18);
+        text("Forecast Desk",18,16);
+        fill(COLORS.UI.menuMuted);
+        textSize(12);
+        text("Ready",20,42);
+    },true);
+
+    mainMenu.append(false,78,240,220,38,function(s){
+        s.button('New Basin',true,20);
     },function(){
         mainMenu.hide();
         basinCreationMenu.show();
-    }).append(false,0,60,200,40,function(s){     // load button
-        s.button('Load Basin',true,24);
+    }).append(false,0,50,220,38,function(s){
+        s.button('Load Basin',true,20);
     },function(){
         mainMenu.hide();
         loadMenu.show();
         loadMenu.refresh();
-    }).append(false,0,60,200,40,function(s){     // settings menu button
-        s.button('Settings',true,24);
+    }).append(false,0,50,220,38,function(s){
+        s.button('Global Chat',true,20);
+    },function(){
+        globalChatPanel.show();
+    }).append(false,0,50,220,38,function(s){
+        s.button('Settings',true,20);
     },function(){
         mainMenu.hide();
         settingsMenu.show();
     });
+
+    mainMenu.append(false,560,90,300,280,function(){
+        fill(COLORS.UI.menuPanel);
+        stroke(255,255,255,45);
+        rect(0,0,this.width,this.height,8);
+        noStroke();
+        fill(COLORS.UI.menuText);
+        textAlign(LEFT,TOP);
+        textSize(19);
+        text("Live Board",18,16);
+        textSize(13);
+        fill(COLORS.UI.menuMuted);
+        text("ACE",22,64);
+        text("LANDFALLS",22,120);
+        text("CHAT",22,176);
+        fill(COLORS.UI.accent);
+        textSize(32);
+        text("--",22,78);
+        text("--",22,134);
+        fill(GlobalChat.connected ? COLORS.UI.greenAccent : COLORS.UI.accent);
+        textSize(22);
+        text(GlobalChat.connected ? "ONLINE" : "OFFLINE",22,194);
+    },true);
 
     // basin creation menu
 
@@ -1402,6 +1702,31 @@ UI.init = function(){
         dateNavigator.toggleShow();
     });
 
+    topBar.append(false,WIDTH/2-92,3,184,24,function(s){  // Season ACE / landfall indicator
+        if(!(UI.viewBasin instanceof Basin)) return;
+        let basin = UI.viewBasin;
+        let seas = basin.fetchSeason(viewTick,true);
+        let txtStr = "Season ACE -- | LF --";
+        if(seas instanceof Season){
+            let stats = seas.stats(basin.mainSubBasin);
+            txtStr = "Season ACE " + stats.ACE + " | LF " + stats.landfalls;
+        }
+        if(this.isHovered()){
+            fill(COLORS.UI.buttonHover);
+            s.fullRect();
+        }
+        fill(COLORS.UI.text);
+        noStroke();
+        textAlign(CENTER,TOP);
+        textSize(14);
+        text(txtStr,this.width/2,5);
+    },function(){
+        if(UI.viewBasin instanceof Basin){
+            stormInfoPanel.target = UI.viewBasin.getSeason(viewTick);
+            panel_timeline_container.show();
+        }
+    });
+
     let panel_timeline_container = primaryWrapper.append(false,0,topBar.height,0,0,undefined,undefined,false);
 
     dateNavigator = primaryWrapper.append(false,0,30,140,80,function(s){     // Analysis navigator panel
@@ -2224,6 +2549,10 @@ UI.init = function(){
         primaryWrapper.hide();
         settingsMenu.show();
         paused = true;
+    }).append(false,0,30,sideMenu.width-10,25,function(s){   // Global chat button
+        s.button("Global Chat",false,15);
+    },function(){
+        globalChatPanel.show();
     }).append(false,0,30,sideMenu.width-10,25,function(s){   // Designation system editor menu button
         s.button("Edit Designations",false,15);
     },function(){
