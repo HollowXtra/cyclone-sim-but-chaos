@@ -1,0 +1,61 @@
+{
+  "name": "cyclone-sim-but-chaos",
+  "version": "0.4.25",
+  "description": "A p5.js tropical cyclone simulation game",
+  "author": "HollowXtra",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64 --publish never",
+    "release:win": "electron-builder --win --x64 --publish always"
+  },
+  "devDependencies": {
+    "electron": "^41.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.hollowxtra.cyclonesimbutchaos",
+    "productName": "Cyclone Sim But Chaos",
+    "asar": false,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "desktop/**/*",
+      "dependencies/**/*",
+      "resources/**/*",
+      "*.js",
+      "*.html",
+      "*.css",
+      "*.txt",
+      "*.ico"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cyclone Sim But Chaos"
+    },
+    "portable": {
+      "artifactName": "${productName}-Portable-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "HollowXtra",
+        "repo": "cyclone-sim-but-chaos",
+        "releaseType": "draft"
+      }
+    ]
+  }
+}
