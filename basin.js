@@ -20,6 +20,9 @@ class Basin{
         this.startMonth = opts.startMonth;
         if(this.startMonth === undefined)
             this.startMonth = this.SHem ? 6 : 0;
+        this.ensoMode = opts.ensoMode;
+        if(this.ensoMode === undefined)
+            this.ensoMode = ENSO_AUTO;
         this.mapType = opts.mapType || 0;
         this.customMap = {};
         Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS, opts.customMap || {});
@@ -220,6 +223,87 @@ class Basin{
         seasonCurve = (t,...args)=>curve(this.seasonalTick(t),...args);
     }
 
+    ensoValue(t){
+        if(t===undefined) t = this.tick;
+        switch(this.ensoMode){
+            case ENSO_EL_NINO:
+                return 1;
+            case ENSO_LA_NINA:
+                return -1;
+            case ENSO_NEUTRAL:
+                return 0;
+        }
+        let years = (t || 0) / YEAR_LENGTH;
+        let phase = ((this.seed || 1) % 100000) / 100000 * TAU;
+        let slow = sin(TAU * years / 4.3 + phase);
+        let wobble = sin(TAU * years / 2.6 + phase * 1.73) * 0.36;
+        let multiYear = sin(TAU * years / 7.1 + phase * 0.41) * 0.18;
+        return constrain((slow + wobble + multiYear) / 1.38, -1, 1);
+    }
+
+    ensoLabel(t,showMode){
+        let v = this.ensoValue(t);
+        let label;
+        if(abs(v) < 0.28)
+            label = "Neutral";
+        else{
+            let strength = abs(v) > 0.72 ? "Strong " : abs(v) > 0.48 ? "" : "Weak ";
+            label = strength + (v > 0 ? "El Nino" : "La Nina");
+        }
+        if(showMode && this.ensoMode === ENSO_AUTO)
+            return "Auto: " + label;
+        return label;
+    }
+
+    ensoActivityIndex(t,x,y){
+        let e = this.ensoValue(t);
+        let main = this.mainSubBasin;
+        let index = 0;
+        if(main === EARTH_SB_IDS.atl)
+            index = -e;
+        else if(main === EARTH_SB_IDS.epac)
+            index = e;
+        else if(main === EARTH_SB_IDS.aus || main === EARTH_SB_IDS.spac)
+            index = -e;
+        else if(main === EARTH_SB_IDS.wpac)
+            index = 0.12 * abs(e);
+        else if(MAP_TYPES[this.mapType].form !== 'earth'){
+            let eastBias = x === undefined ? 0.25 : map(x,0,WIDTH,-0.45,0.45,true);
+            index = e * eastBias;
+        }
+        return constrain(index,-1,1);
+    }
+
+    ensoSpawnModifier(t){
+        return constrain(1 + 0.34 * this.ensoActivityIndex(t, WIDTH*0.62, HEIGHT*0.78), 0.55, 1.55);
+    }
+
+    ensoShearFactor(t,x,y){
+        return constrain(1 - 0.18 * this.ensoActivityIndex(t,x,y), 0.76, 1.28);
+    }
+
+    ensoMoistureAdjustment(t,x,y){
+        return 0.055 * this.ensoActivityIndex(t,x,y);
+    }
+
+    ensoSSTAnomaly(x,y,t){
+        let e = this.ensoValue(t);
+        if(abs(e) < 0.05) return 0;
+        let tropical = map(y,HEIGHT*0.38,HEIGHT*0.95,0,1,true);
+        let main = this.mainSubBasin;
+        if(main === EARTH_SB_IDS.epac)
+            return 0.85 * e * tropical;
+        if(main === EARTH_SB_IDS.wpac)
+            return -0.45 * e * tropical;
+        if(main === EARTH_SB_IDS.aus || main === EARTH_SB_IDS.spac)
+            return -0.25 * e * tropical;
+        if(MAP_TYPES[this.mapType].form !== 'earth'){
+            let east = map(x,0,WIDTH,-0.55,0.55,true);
+            return e * east * tropical;
+        }
+        return 0;
+    }
+
     tickMoment(t){
         if(t===undefined) t = this.tick;
         return moment.utc(this.startTime()+t*TICK_DURATION);
@@ -287,7 +371,31 @@ class Basin{
             data.x = x;
         if(y !== undefined)
             data.y = y;
+        this.applyENSOSpawnBias(data);
         this.spawn(data);
+    }
+
+    applyENSOSpawnBias(data){
+        if(!(data.type === TROPWAVE || data.type === TROP || data.type === SUBTROP)) return;
+        let e = this.ensoValue(this.tick);
+        if(abs(e) < 0.12) return;
+        if(this.mainSubBasin === EARTH_SB_IDS.wpac){
+            if(data.x !== undefined)
+                data.x = constrain(data.x + e * WIDTH * 0.16, 0, WIDTH-1);
+            if(data.y !== undefined){
+                let hy = this.hemY(data.y);
+                hy = constrain(hy + e * HEIGHT * 0.055, HEIGHT*0.18, HEIGHT*0.96);
+                data.y = this.hemY(hy);
+            }
+        }else if(this.mainSubBasin === EARTH_SB_IDS.aus || this.mainSubBasin === EARTH_SB_IDS.spac){
+            if(data.y !== undefined){
+                let hy = this.hemY(data.y);
+                hy = constrain(hy + e * HEIGHT * 0.04, HEIGHT*0.22, HEIGHT*0.96);
+                data.y = this.hemY(hy);
+            }
+        }else if(MAP_TYPES[this.mapType].form !== 'earth' && data.x !== undefined){
+            data.x = constrain(data.x + e * WIDTH * 0.06, 0, WIDTH-1);
+        }
     }
 
     addSubBasin(id,...args){
@@ -546,6 +654,7 @@ class Basin{
                 'startYear',
                 'actMode',
                 'startMonth',
+                'ensoMode',
                 'customMap'
             ]) b[p] = this[p];
             return db.transaction('rw',db.saves,db.seasons,()=>{
@@ -625,10 +734,13 @@ class Basin{
                             'seed',
                             'startYear',
                             'startMonth',
+                            'ensoMode',
                             'customMap'
                         ]) this[p] = obj[p];
                         if(this.startMonth === undefined)
                             this.startMonth = this.SHem ? 6 : 0;
+                        if(this.ensoMode === undefined)
+                            this.ensoMode = ENSO_AUTO;
                         this.customMap = {};
                         Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS, obj.customMap || {});
                         if(obj.nameList) oldNameList = obj.nameList;
@@ -682,6 +794,7 @@ class Basin{
                         }
                         if(this.startMonth === undefined)
                             this.startMonth = this.SHem ? 6 : 0;
+                        this.ensoMode = ENSO_AUTO;
                         this.customMap = {};
                         Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS);
                     }

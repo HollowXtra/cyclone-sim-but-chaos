@@ -1,5 +1,9 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.4.30 (2026-05-28):
+    + Added El Nino, La Nina, Neutral, and Auto ENSO basin settings
+    + ENSO now affects tropical wave spawning, shear, humidity, SST anomalies, and basin-specific genesis shifts
+    + Added an ENSO map layer plus in-game ENSO readouts in the HUD and season panel
 v0.4.29 (2026-05-28):
     + Added a cinematic intro and revamped main menu
     + Added online global chat through an opt-in public ntfy.sh topic

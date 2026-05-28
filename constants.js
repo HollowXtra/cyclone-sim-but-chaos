@@ -1,7 +1,7 @@
 const TITLE = "Cyclone Simulator";
-const VERSION_NUMBER = "0.4.29";
+const VERSION_NUMBER = "0.4.30";
 
-const SAVE_FORMAT = 9;  // Format #9 in use starting in v0.4.29
+const SAVE_FORMAT = 10;  // Format #10 in use starting in v0.4.30
 const EARLIEST_COMPATIBLE_FORMAT = 0;
 const ENVDATA_COMPATIBLE_FORMAT = 0;
 
@@ -22,6 +22,12 @@ const CUSTOM_MAP_LAYOUTS = ['Archipelago','Split Continents','Central Continent'
 const CUSTOM_MAP_LAND_LEVELS = ['Sparse','Balanced','Land Heavy'];
 const CUSTOM_MAP_CHAOS_LEVELS = ['Low','Medium','High','Extreme'];
 const CUSTOM_MAP_MOUNTAIN_LEVELS = ['Low','Medium','High'];
+const ENSO_AUTO = 0;
+const ENSO_EL_NINO = 1;
+const ENSO_NEUTRAL = 2;
+const ENSO_LA_NINA = 3;
+const ENSO_MODE_LABELS = ['Auto','El Nino','Neutral','La Nina'];
+const ENSO_PHASE_LABELS = ['La Nina','Neutral','El Nino'];
 const CUSTOM_MAP_DEFAULTS = {
     layout: 1,
     land: 1,
@@ -326,6 +332,7 @@ const FORMAT_WITH_EARTH_SUBBASINS = 7;
 const FORMAT_WITH_LONG_LAT = 7;
 const FORMAT_WITH_CUSTOM_MAPS = 8;
 const FORMAT_WITH_LANDFALL_MARKERS = 9;
+const FORMAT_WITH_ENSO = 10;
 
 const GLOBAL_CHAT_TOPIC = "cyclone-sim-but-chaos-global-v1";
 const GLOBAL_CHAT_MAX_MESSAGES = 45;

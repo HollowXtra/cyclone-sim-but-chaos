@@ -924,6 +924,7 @@ UI.init = function(){
             'designations',
             'scale',
             'scaleFlavor',
+            'ensoMode',
             'customMap'
         ]) opts[o] = advancedBasinSettings[o];
         let basin = new Basin(false,opts);
@@ -955,6 +956,8 @@ UI.init = function(){
         text("New Basin Settings (Advanced)",0,0);
     });
 
+    let advancedMenuSpacing = 32;
+
     let hemsel = basinCreationMenuAdvanced.append(false,WIDTH/2-basinCreationMenuButtonWidths/2,HEIGHT/8,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){   // hemisphere selector
         let hem = "Random";
         if(advancedBasinSettings.hem===1) hem = "Northern";
@@ -969,7 +972,7 @@ UI.init = function(){
         }
     });
 
-    let startmonthsel = hemsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+    let startmonthsel = hemsel.append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
         let label = advancedBasinSettings.startMonth===undefined ? "Default" : MONTH_NAMES[advancedBasinSettings.startMonth];
         s.button('Start Month: '+label,true);
     },function(){
@@ -981,7 +984,19 @@ UI.init = function(){
         }
     });
 
-    let desigsel = startmonthsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){    // Scale selector
+    let ensosel = startmonthsel.append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let mode = advancedBasinSettings.ensoMode || ENSO_AUTO;
+        s.button('ENSO: '+ENSO_MODE_LABELS[mode],true);
+    },function(){
+        yearselbox.enterFunc();
+        if(advancedBasinSettings.ensoMode===undefined) advancedBasinSettings.ensoMode = ENSO_EL_NINO;
+        else{
+            advancedBasinSettings.ensoMode++;
+            advancedBasinSettings.ensoMode %= ENSO_MODE_LABELS.length;
+        }
+    });
+
+    let desigsel = ensosel.append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){    // Scale selector
         let scale = advancedBasinSettings.scale || 0;
         scale = Scale.presetScales[scale].displayName;
         s.button('Scale: '+scale,true);
@@ -990,7 +1005,7 @@ UI.init = function(){
         advancedBasinSettings.scale++;
         advancedBasinSettings.scale %= Scale.presetScales.length;
         advancedBasinSettings.scaleFlavor = 0;
-    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){     // Scale flavor selector
+    }).append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){     // Scale flavor selector
         let scale = advancedBasinSettings.scale || 0;
         scale = Scale.presetScales[scale];
         let flavor = advancedBasinSettings.scaleFlavor || 0;
@@ -1003,7 +1018,7 @@ UI.init = function(){
         if(advancedBasinSettings.scaleFlavor===undefined) advancedBasinSettings.scaleFlavor = 0;
         advancedBasinSettings.scaleFlavor++;
         advancedBasinSettings.scaleFlavor %= scale.flavorDisplayNames.length;
-    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){     // Designations selector
+    }).append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){     // Designations selector
         let ds = advancedBasinSettings.designations || 0;
         ds = DesignationSystem.presetDesignationSystems[ds].displayName;
         s.button('Designations: '+ds,true);
@@ -1013,28 +1028,28 @@ UI.init = function(){
         advancedBasinSettings.designations %= DesignationSystem.presetDesignationSystems.length;
     });
 
-    let customLayoutSel = desigsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+    let customLayoutSel = desigsel.append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
         let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
         s.button('Custom Layout: '+CUSTOM_MAP_LAYOUTS[cm.layout],true,18,!customMapSelected());
     },function(){
         if(!customMapSelected()) return;
         let cm = advancedBasinSettings.customMap;
         cm.layout = (cm.layout+1)%CUSTOM_MAP_LAYOUTS.length;
-    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+    }).append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
         let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
         s.button('Custom Land: '+CUSTOM_MAP_LAND_LEVELS[cm.land],true,18,!customMapSelected());
     },function(){
         if(!customMapSelected()) return;
         let cm = advancedBasinSettings.customMap;
         cm.land = (cm.land+1)%CUSTOM_MAP_LAND_LEVELS.length;
-    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+    }).append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
         let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
         s.button('Coast Chaos: '+CUSTOM_MAP_CHAOS_LEVELS[cm.chaos],true,18,!customMapSelected());
     },function(){
         if(!customMapSelected()) return;
         let cm = advancedBasinSettings.customMap;
         cm.chaos = (cm.chaos+1)%CUSTOM_MAP_CHAOS_LEVELS.length;
-    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+    }).append(false,0,advancedMenuSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
         let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
         s.button('Mountains: '+CUSTOM_MAP_MOUNTAIN_LEVELS[cm.mountains],true,18,!customMapSelected());
     },function(){
@@ -1043,7 +1058,7 @@ UI.init = function(){
         cm.mountains = (cm.mountains+1)%CUSTOM_MAP_MOUNTAIN_LEVELS.length;
     });
 
-    let seedsel = customLayoutSel.append(false,0,basinCreationMenuButtonSpacing,0,basinCreationMenuButtonHeights,function(s){
+    let seedsel = customLayoutSel.append(false,0,advancedMenuSpacing,0,basinCreationMenuButtonHeights,function(s){
         textAlign(LEFT,CENTER);
         text('Seed:',0,basinCreationMenuButtonHeights/2);
     }).append(false,50,0,basinCreationMenuButtonWidths-50,basinCreationMenuButtonHeights,[18,16]);
@@ -1702,14 +1717,14 @@ UI.init = function(){
         dateNavigator.toggleShow();
     });
 
-    topBar.append(false,WIDTH/2-92,3,184,24,function(s){  // Season ACE / landfall indicator
+    topBar.append(false,WIDTH/2-150,3,300,24,function(s){  // Season ACE / landfall / ENSO indicator
         if(!(UI.viewBasin instanceof Basin)) return;
         let basin = UI.viewBasin;
         let seas = basin.fetchSeason(viewTick,true);
-        let txtStr = "Season ACE -- | LF --";
+        let txtStr = "Season ACE -- | LF -- | ENSO --";
         if(seas instanceof Season){
             let stats = seas.stats(basin.mainSubBasin);
-            txtStr = "Season ACE " + stats.ACE + " | LF " + stats.landfalls;
+            txtStr = "Season ACE " + stats.ACE + " | LF " + stats.landfalls + " | " + basin.ensoLabel(viewTick);
         }
         if(this.isHovered()){
             fill(COLORS.UI.buttonHover);
@@ -2076,6 +2091,7 @@ UI.init = function(){
                 let scale = UI.viewBasin.getScale(UI.viewBasin.mainSubBasin);
                 for(let {statName, cNumber} of scale.statDisplay())
                     info_row(statName, counters[cNumber]);
+                info_row('ENSO', UI.viewBasin.ensoLabel(UI.viewBasin.seasonTick(S),true));
                 info_row('Total ACE', stats.ACE);
                 info_row('Damage', damageDisplayNumber(stats.damage));
                 info_row('Deaths', stats.deaths);

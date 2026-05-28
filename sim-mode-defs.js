@@ -189,7 +189,7 @@ SPAWN_RULES.defaults.archetypes = {
 
 SPAWN_RULES.defaults.doSpawn = function(b){
     // tropical waves
-    if(random()<0.015*sq((seasonCurve(b.tick)+1)/2)) b.spawnArchetype('tw');
+    if(random()<0.015*sq((seasonCurve(b.tick)+1)/2)*b.ensoSpawnModifier(b.tick)) b.spawnArchetype('tw');
 
     // extratropical cyclones
     if(random()<0.01-0.002*seasonCurve(b.tick)) b.spawnArchetype('ex');
@@ -202,7 +202,7 @@ SPAWN_RULES[SIM_MODE_NORMAL].doSpawn = SPAWN_RULES.defaults.doSpawn;
 // -- Hyper Mode -- //
 
 SPAWN_RULES[SIM_MODE_HYPER].doSpawn = function(b){
-    if(random()<(0.013*sq((seasonCurve(b.tick)+1)/2)+0.002)) b.spawnArchetype('tw');
+    if(random()<(0.013*sq((seasonCurve(b.tick)+1)/2)+0.002)*b.ensoSpawnModifier(b.tick)) b.spawnArchetype('tw');
 
     if(random()<0.01-0.002*seasonCurve(b.tick)) b.spawnArchetype('ex');
 };
@@ -224,14 +224,14 @@ SPAWN_RULES[SIM_MODE_WILD].archetypes = {
 };
 
 SPAWN_RULES[SIM_MODE_WILD].doSpawn = function(b){
-    if(random()<0.015) b.spawnArchetype('tw');
+    if(random()<0.015*b.ensoSpawnModifier(b.tick)) b.spawnArchetype('tw');
     if(random()<0.01-0.002*seasonCurve(b.tick)) b.spawnArchetype('ex');
 };
 
 // -- Megablobs Mode -- //
 
 SPAWN_RULES[SIM_MODE_MEGABLOBS].doSpawn = function(b){
-    if(random()<(0.013*sq((seasonCurve(b.tick)+1)/2)+0.002)) b.spawnArchetype('tw');
+    if(random()<(0.013*sq((seasonCurve(b.tick)+1)/2)+0.002)*b.ensoSpawnModifier(b.tick)) b.spawnArchetype('tw');
 
     if(random()<0.01-0.002*seasonCurve(b.tick)) b.spawnArchetype('ex');
 };
@@ -326,7 +326,7 @@ function chaosSpawnCandidate(b){
         let instability = b.env.get("instability",x,y,b.tick);
         let shear = b.env.get("shear",x,y,b.tick).mag();
         let pulse = b.env.get("monsoonPulse",x,y,b.tick);
-        let score = heat*0.45 + instability*0.65 + pulse*0.35 - map(shear,1,7,0,0.55,true) + random(-0.15,0.15);
+        let score = heat*0.45 + instability*0.65 + pulse*0.35 + b.ensoActivityIndex(b.tick,x,y)*0.22 - map(shear,1,7,0,0.55,true) + random(-0.15,0.15);
         if(score > bestScore){
             bestScore = score;
             best = {x,y};
@@ -338,13 +338,13 @@ function chaosSpawnCandidate(b){
 SPAWN_RULES[SIM_MODE_CHAOS].doSpawn = function(b){
     let seasonal = sq((seasonCurve(b.tick)+1)/2);
     let pulse = b.env.get("instability",WIDTH/2,b.hemY(HEIGHT*0.78),b.tick);
-    let spawnChance = 0.006 + 0.017*seasonal*map(pulse,0,1,0.45,1.65);
+    let spawnChance = (0.006 + 0.017*seasonal*map(pulse,0,1,0.45,1.65))*b.ensoSpawnModifier(b.tick);
     if(random()<spawnChance){
         let spot = chaosSpawnCandidate(b);
         if(spot) b.spawnArchetype('tw',spot.x,spot.y);
         else b.spawnArchetype('tw');
     }
-    if(random()<0.0035*seasonal*map(pulse,0,1,0.2,1.4)){
+    if(random()<0.0035*seasonal*map(pulse,0,1,0.2,1.4)*b.ensoSpawnModifier(b.tick)){
         let spot = chaosSpawnCandidate(b);
         if(spot) b.spawnArchetype('l',spot.x,spot.y);
     }
@@ -408,6 +408,41 @@ ENV_DEFS[SIM_MODE_CHAOS] = {}; // "Realistic Chaos" simulation mode
 // ENV_DEFS[SIM_MODE_WILD].sample = {};
 // ENV_DEFS[SIM_MODE_MEGABLOBS].sample = {};
 // ENV_DEFS[SIM_MODE_EXPERIMENTAL].sample = {};
+
+// -- ENSO -- //
+
+ENV_DEFS.defaults.ENSO = {
+    displayName: 'ENSO phase',
+    version: 0,
+    mapFunc: (u,x,y,z)=>{
+        let v = u.basin.ensoValue(z);
+        let influence = u.basin.ensoActivityIndex(z,x,y);
+        return constrain(v + influence*0.18,-1.2,1.2);
+    },
+    displayFormat: (v)=>{
+        let label = abs(v) < 0.28 ? "Neutral" : v > 0 ? "El Nino" : "La Nina";
+        return label + " (" + (v >= 0 ? "+" : "") + (round(v*100)/100) + ")";
+    },
+    hueMap: (v)=>{
+        colorMode(HSB);
+        let nina = color(220,95,75);
+        let neutral = color(200,5,92);
+        let nino = color(10,95,85);
+        let c = v < 0 ? lerpColor(nina,neutral,map(v,-1,0,0,1)) :
+            lerpColor(neutral,nino,map(v,0,1,0,1));
+        colorMode(RGB);
+        return c;
+    },
+    oceanic: true,
+    noWobble: true
+};
+ENV_DEFS[SIM_MODE_NORMAL].ENSO = {};
+ENV_DEFS[SIM_MODE_HYPER].ENSO = {};
+ENV_DEFS[SIM_MODE_WILD].ENSO = {};
+ENV_DEFS[SIM_MODE_MEGABLOBS].ENSO = {};
+ENV_DEFS[SIM_MODE_EXPERIMENTAL].ENSO = {};
+ENV_DEFS[SIM_MODE_SPOOKY].ENSO = {};
+ENV_DEFS[SIM_MODE_CHAOS].ENSO = {};
 
 // -- jetstream -- //
 
@@ -736,6 +771,7 @@ ENV_DEFS.defaults.shear = {
         let ul = u.field('ULSteering');
         u.vec.set(ul);
         u.vec.sub(ll);
+        u.vec.mult(u.basin.ensoShearFactor(z,x,y));
         return u.vec;
     },
     displayFormat: v=>{
@@ -787,6 +823,7 @@ ENV_DEFS.defaults.SSTAnomaly = {
         v = -r*v;
         v = v*i;
         if(u.modifiers.bigBlobBase!==undefined && v>u.modifiers.bigBlobExponentThreshold) v += pow(u.modifiers.bigBlobBase,v-u.modifiers.bigBlobExponentThreshold)-1;
+        v += u.basin.ensoSSTAnomaly(x,y,z);
         return v;
     },
     displayFormat: v=>{
@@ -953,6 +990,7 @@ ENV_DEFS.defaults.moisture = {
         let mm = u.modifiers.mountainMoisture;
         let m = map(l,0.5,0.7,map(y,0,HEIGHT,pm,tm),mm,true);
         m += map(s,-1,1,-0.08,0.08);
+        m += u.basin.ensoMoistureAdjustment(z,x,y);
         m += map(v,0,1,-0.3,0.3);
         m = constrain(m,0,1);
         return m;
