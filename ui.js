@@ -484,7 +484,18 @@ UI.init = function(){
     let newBasinSettings = {};
     newBasinSettings.mapType = 6; // default to Atlantic
     let advancedBasinSettings = {};
-    Object.assign(advancedBasinSettings, MAP_TYPES[newBasinSettings.mapType || 0].optionPresets);
+    let copyPreset = v=>{
+        if(v && typeof v === 'object') return Object.assign({},v);
+        return v;
+    };
+    let resetAdvancedBasinSettings = ()=>{
+        advancedBasinSettings = {};
+        let presets = MAP_TYPES[newBasinSettings.mapType || 0].optionPresets || {};
+        for(let k in presets) advancedBasinSettings[k] = copyPreset(presets[k]);
+        if(!advancedBasinSettings.customMap) advancedBasinSettings.customMap = Object.assign({},CUSTOM_MAP_DEFAULTS);
+    };
+    let customMapSelected = ()=>MAP_TYPES[newBasinSettings.mapType || 0].form === 'custom';
+    resetAdvancedBasinSettings();
 
     basinCreationMenu.append(false,WIDTH/2,HEIGHT/16,0,0,function(s){ // menu title text
         fill(COLORS.UI.text);
@@ -506,8 +517,7 @@ UI.init = function(){
         if(newBasinSettings.mapType===undefined) newBasinSettings.mapType = 0;
         newBasinSettings.mapType++;
         newBasinSettings.mapType %= MAP_TYPES.length;
-        advancedBasinSettings = {};
-        Object.assign(advancedBasinSettings, MAP_TYPES[newBasinSettings.mapType || 0].optionPresets);
+        resetAdvancedBasinSettings();
     })
 
     let yearsel = maptypesel.append(false,0,basinCreationMenuButtonSpacing,0,basinCreationMenuButtonHeights,function(s){ // Year selector
@@ -601,6 +611,7 @@ UI.init = function(){
         if(advancedBasinSettings.hem===1) opts.hem = false;
         else if(advancedBasinSettings.hem===2) opts.hem = true;
         else opts.hem = random()<0.5;
+        if(advancedBasinSettings.startMonth!==undefined) opts.startMonth = advancedBasinSettings.startMonth;
         opts.year = opts.hem ? SHEM_DEFAULT_YEAR : NHEM_DEFAULT_YEAR;
         if(newBasinSettings.year!==undefined) opts.year = newBasinSettings.year;
         for(let o of [
@@ -612,14 +623,14 @@ UI.init = function(){
             'seed',
             'designations',
             'scale',
-            'scaleFlavor'
+            'scaleFlavor',
+            'customMap'
         ]) opts[o] = advancedBasinSettings[o];
         let basin = new Basin(false,opts);
 
         newBasinSettings = {};
         newBasinSettings.mapType = 6; // default to Atlantic
-        advancedBasinSettings = {};
-        Object.assign(advancedBasinSettings, MAP_TYPES[newBasinSettings.mapType || 0].optionPresets);
+        resetAdvancedBasinSettings();
 
         basin.initialized.then(()=>{
             basin.mount();
@@ -658,7 +669,19 @@ UI.init = function(){
         }
     });
 
-    let desigsel = hemsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){    // Scale selector
+    let startmonthsel = hemsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let label = advancedBasinSettings.startMonth===undefined ? "Default" : MONTH_NAMES[advancedBasinSettings.startMonth];
+        s.button('Start Month: '+label,true);
+    },function(){
+        yearselbox.enterFunc();
+        if(advancedBasinSettings.startMonth===undefined) advancedBasinSettings.startMonth = 0;
+        else{
+            advancedBasinSettings.startMonth++;
+            if(advancedBasinSettings.startMonth>=12) advancedBasinSettings.startMonth = undefined;
+        }
+    });
+
+    let desigsel = startmonthsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){    // Scale selector
         let scale = advancedBasinSettings.scale || 0;
         scale = Scale.presetScales[scale].displayName;
         s.button('Scale: '+scale,true);
@@ -690,7 +713,37 @@ UI.init = function(){
         advancedBasinSettings.designations %= DesignationSystem.presetDesignationSystems.length;
     });
 
-    let seedsel = desigsel.append(false,0,basinCreationMenuButtonSpacing,0,basinCreationMenuButtonHeights,function(s){
+    let customLayoutSel = desigsel.append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
+        s.button('Custom Layout: '+CUSTOM_MAP_LAYOUTS[cm.layout],true,18,!customMapSelected());
+    },function(){
+        if(!customMapSelected()) return;
+        let cm = advancedBasinSettings.customMap;
+        cm.layout = (cm.layout+1)%CUSTOM_MAP_LAYOUTS.length;
+    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
+        s.button('Custom Land: '+CUSTOM_MAP_LAND_LEVELS[cm.land],true,18,!customMapSelected());
+    },function(){
+        if(!customMapSelected()) return;
+        let cm = advancedBasinSettings.customMap;
+        cm.land = (cm.land+1)%CUSTOM_MAP_LAND_LEVELS.length;
+    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
+        s.button('Coast Chaos: '+CUSTOM_MAP_CHAOS_LEVELS[cm.chaos],true,18,!customMapSelected());
+    },function(){
+        if(!customMapSelected()) return;
+        let cm = advancedBasinSettings.customMap;
+        cm.chaos = (cm.chaos+1)%CUSTOM_MAP_CHAOS_LEVELS.length;
+    }).append(false,0,basinCreationMenuButtonSpacing,basinCreationMenuButtonWidths,basinCreationMenuButtonHeights,function(s){
+        let cm = advancedBasinSettings.customMap || CUSTOM_MAP_DEFAULTS;
+        s.button('Mountains: '+CUSTOM_MAP_MOUNTAIN_LEVELS[cm.mountains],true,18,!customMapSelected());
+    },function(){
+        if(!customMapSelected()) return;
+        let cm = advancedBasinSettings.customMap;
+        cm.mountains = (cm.mountains+1)%CUSTOM_MAP_MOUNTAIN_LEVELS.length;
+    });
+
+    let seedsel = customLayoutSel.append(false,0,basinCreationMenuButtonSpacing,0,basinCreationMenuButtonHeights,function(s){
         textAlign(LEFT,CENTER);
         text('Seed:',0,basinCreationMenuButtonHeights/2);
     }).append(false,50,0,basinCreationMenuButtonWidths-50,basinCreationMenuButtonHeights,[18,16]);

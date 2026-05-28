@@ -1,7 +1,7 @@
 const TITLE = "Cyclone Simulator";
-const VERSION_NUMBER = "0.4.27";
+const VERSION_NUMBER = "0.4.28";
 
-const SAVE_FORMAT = 7;  // Format #7 in use starting in v0.4
+const SAVE_FORMAT = 8;  // Format #8 in use starting in v0.4.28
 const EARLIEST_COMPATIBLE_FORMAT = 0;
 const ENVDATA_COMPATIBLE_FORMAT = 0;
 
@@ -17,6 +17,17 @@ const NHEM_DEFAULT_YEAR = moment.utc().year();
 const SHEM_DEFAULT_YEAR = moment.utc().month() < 6 ? NHEM_DEFAULT_YEAR : NHEM_DEFAULT_YEAR+1;
 const DEPRESSION_LETTER = "H";
 const WINDSPEED_ROUNDING = 5;
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CUSTOM_MAP_LAYOUTS = ['Archipelago','Split Continents','Central Continent','Broken World'];
+const CUSTOM_MAP_LAND_LEVELS = ['Sparse','Balanced','Land Heavy'];
+const CUSTOM_MAP_CHAOS_LEVELS = ['Low','Medium','High','Extreme'];
+const CUSTOM_MAP_MOUNTAIN_LEVELS = ['Low','Medium','High'];
+const CUSTOM_MAP_DEFAULTS = {
+    layout: 1,
+    land: 1,
+    chaos: 2,
+    mountains: 1
+};
 // const MAP_DEFINITION = 2;   // normal scaler for the land map
 const EARTH_SB_IDS = {
     world: 0,
@@ -251,6 +262,14 @@ const MAP_TYPES = [     // Land generation controls and option presets for diffe
             scale: 0,
             designations: 10
         }
+    },
+    {
+        label: "Custom Map",
+        form: "custom",
+        optionPresets: {
+            designations: 22,
+            customMap: CUSTOM_MAP_DEFAULTS
+        }
     }
 ];
 const EARTH_MAP_PATH = 'resources/earth.png';
@@ -305,6 +324,7 @@ const FORMAT_WITH_STORM_SUBBASIN_DATA = 5;
 const FORMAT_WITH_SCALES = 6;
 const FORMAT_WITH_EARTH_SUBBASINS = 7;
 const FORMAT_WITH_LONG_LAT = 7;
+const FORMAT_WITH_CUSTOM_MAPS = 8;
 
 // Legacy saving/loading-related constants (backwards-compatibility)
 

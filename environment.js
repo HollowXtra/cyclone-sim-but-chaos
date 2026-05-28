@@ -220,7 +220,7 @@ class EnvField{
                     if(this.basin.env.fields[name].accurateAfter>this.accurateAfter) this.accurateAfter = this.basin.env.fields[name].accurateAfter;
                     return this.basin.env.get(name,x1,y1,z1,true);
                 };
-                u.yearfrac = z=>(z%YEAR_LENGTH)/YEAR_LENGTH;    // fraction of the way through the year for a tick (SHem year begins July 1 so this value is climatologically the same for both hemispheres)
+                u.yearfrac = z=>(this.basin.seasonalTick(z)%YEAR_LENGTH)/YEAR_LENGTH;    // fraction of the way through the climatological year
                 u.piecewise = (s,arr)=>{
                     // constructs and evaluates an interpolation function defined piecewise with linear segments
                     // s is a year fraction in the range 0 to 1 (the argument to the interpolation function)
@@ -514,6 +514,8 @@ class Land{
             this.map.copy(mapImg, 0, 0, mapImg.width, mapImg.height, 0, 0, W, H);
         }
         this.noise = new NoiseChannel(9,0.5,100);
+        this.detailNoise = new NoiseChannel(5,0.55,38);
+        this.ridgeNoise = new NoiseChannel(6,0.5,170);
         this.oceanTile = [];
         this.mapDefinition = undefined;
         this.drawn = false;
@@ -631,6 +633,8 @@ class Land{
         }else{                              // procedurally generate map from noise and store in this.map image
             let img = this.map;
             let mapDef = this.mapDefinition = W/WIDTH;
+            let custom = {};
+            Object.assign(custom,CUSTOM_MAP_DEFAULTS,this.basin.customMap || {});
 
             img.loadPixels();
             let pixels = img.pixels;
@@ -643,14 +647,43 @@ class Land{
                     let x = i/mapDef;
                     let y = j/mapDef;
                     let n = this.noise.get(x,y);
-                    let landBiasFactors = mapTypeControls.landBiasFactors;
                     let landBias;
-                    if(mapTypeControls.form == "linear"){
+                    if(mapTypeControls.form === "custom"){
+                        let nx = x/WIDTH;
+                        let ny = y/HEIGHT;
+                        let landAdj = [-0.11,0,0.11][custom.land] || 0;
+                        let chaos = [0.5,0.8,1.1,1.45][custom.chaos] || 1.1;
+                        let detail = map(this.detailNoise.get(x*chaos,y*chaos),0,1,-0.18,0.18)*chaos;
+                        let ridge = 1 - abs(this.ridgeNoise.get(x,y)*2-1);
+                        if(custom.layout===0){          // archipelago
+                            landBias = -0.34 + landAdj + detail + pow(ridge,3)*0.35;
+                        }else if(custom.layout===2){    // central continent
+                            let d = sqrt(sq(nx-0.5)+sq(ny-0.52));
+                            landBias = map(d,0,0.67,0.22,-0.36,true) + landAdj + detail*0.9;
+                        }else if(custom.layout===3){    // broken world
+                            let band = sin(nx*TAU*2.2 + this.ridgeNoise.get(x,y)*TAU);
+                            let d1 = sqrt(sq(nx-0.28)+sq(ny-0.38));
+                            let d2 = sqrt(sq(nx-0.68)+sq(ny-0.62));
+                            landBias = max(map(d1,0,0.45,0.2,-0.35,true),map(d2,0,0.38,0.16,-0.32,true));
+                            landBias += map(band,-1,1,-0.08,0.1) + landAdj + detail*1.2;
+                        }else{                          // split continents
+                            let d1 = sqrt(sq(nx-0.27)+sq(ny-0.48));
+                            let d2 = sqrt(sq(nx-0.74)+sq(ny-0.55));
+                            landBias = max(map(d1,0,0.42,0.2,-0.34,true),map(d2,0,0.4,0.18,-0.33,true));
+                            landBias += landAdj + detail;
+                        }
+                        n = lerp(n,this.detailNoise.get(x,y),0.18*chaos);
+                        landVal = n + landBias;
+                        let mountain = [0.03,0.08,0.15][custom.mountains] || 0.08;
+                        landVal += pow(ridge,2)*mountain;
+                    }else{
+                        let landBiasFactors = mapTypeControls.landBiasFactors;
+                        if(mapTypeControls.form == "linear"){
                         let landBiasAnchor = WIDTH * landBiasFactors[0];
                         landBias = x < landBiasAnchor ?
                             map(x,0,landBiasAnchor,landBiasFactors[1],landBiasFactors[2]) :
                             map(x-landBiasAnchor,0,WIDTH-landBiasAnchor,landBiasFactors[2],landBiasFactors[3]);
-                    }else if(mapTypeControls.form == "radial"){
+                        }else if(mapTypeControls.form == "radial"){
                         let EWAnchor = WIDTH * landBiasFactors[0];
                         let NSAnchor = HEIGHT * landBiasFactors[1];
                         let pointDist = sqrt(sq(x-EWAnchor)+sq(y-NSAnchor));
@@ -660,8 +693,10 @@ class Land{
                             map(pointDist,0,distAnchor1,landBiasFactors[4],landBiasFactors[5]) : pointDist < distAnchor2 ?
                             map(pointDist,distAnchor1,distAnchor2,landBiasFactors[5],landBiasFactors[6]) :
                             landBiasFactors[6];
+                        }
+                        landVal = n + landBias;
                     }
-                    landVal = n + landBias;
+                    landVal = constrain(landVal,0,1);
                     pixels[index] = floor(landVal * 255);
                     pixels[index + 1] = landVal > 0.5 ? 255 : 0;
                     let ox = floor(x/ENV_LAYER_TILE_SIZE);

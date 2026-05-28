@@ -38,7 +38,8 @@ ACTIVE_ATTRIBS[SIM_MODE_CHAOS] = [
     'depth',
     'coreHeat',
     'coldWake',
-    'eyewallCycle'
+    'eyewallCycle',
+    'satelliteCooldown'
 ];
 
 // ---- Season Curve ---- //
@@ -308,7 +309,8 @@ SPAWN_RULES[SIM_MODE_CHAOS].archetypes = {
         depth: 0,
         coreHeat: [0,0.2],
         coldWake: 0,
-        eyewallCycle: 0
+        eyewallCycle: 0,
+        satelliteCooldown: 0
     }
 };
 
@@ -323,7 +325,8 @@ function chaosSpawnCandidate(b){
         let heat = b.env.get("oceanHeat",x,y,b.tick);
         let instability = b.env.get("instability",x,y,b.tick);
         let shear = b.env.get("shear",x,y,b.tick).mag();
-        let score = heat*0.45 + instability*0.65 - map(shear,1,7,0,0.55,true) + random(-0.15,0.15);
+        let pulse = b.env.get("monsoonPulse",x,y,b.tick);
+        let score = heat*0.45 + instability*0.65 + pulse*0.35 - map(shear,1,7,0,0.55,true) + random(-0.15,0.15);
         if(score > bestScore){
             bestScore = score;
             best = {x,y};
@@ -346,6 +349,21 @@ SPAWN_RULES[SIM_MODE_CHAOS].doSpawn = function(b){
         if(spot) b.spawnArchetype('l',spot.x,spot.y);
     }
     if(random()<0.008-0.0015*seasonCurve(b.tick)) b.spawnArchetype('ex');
+    for(let sys of b.activeSystems){
+        if(sys.satelliteCooldown>0 || sys.windSpeed<90 || sys.organization<0.68) continue;
+        let spin = b.env.get("monsoonPulse",sys.pos.x,sys.pos.y,b.tick);
+        let chance = map(sys.windSpeed,90,160,0.001,0.011,true)*map(spin,0,1,0.4,1.8,true);
+        if(random()<chance){
+            let angle = random(TAU);
+            let radius = random(45,95);
+            let x = sys.pos.x + cos(angle)*radius;
+            let y = sys.pos.y + sin(angle)*radius;
+            if(coordinateInCanvas(x,y) && !land.get(Coordinate.convertFromXY(b.mapType,x,y))){
+                b.spawnArchetype(random()<0.7 ? 'tw' : 'l',x,y);
+                sys.satelliteCooldown = random(96,180);
+            }
+        }
+    }
 };
 
 
@@ -996,6 +1014,43 @@ ENV_DEFS[SIM_MODE_CHAOS].moisture = {
     ]
 };
 
+// -- monsoonPulse -- //
+
+ENV_DEFS[SIM_MODE_CHAOS].monsoonPulse = {
+    displayName: 'Monsoon burst potential',
+    version: 0,
+    mapFunc: (u,x,y,z)=>{
+        let moisture = u.field('moisture');
+        let shear = u.field('shear').mag();
+        let ll = u.field('LLSteering');
+        let lowLevelSpin = map(abs(ll.y),0.1,2.8,0,0.28,true);
+        let broadPulse = map(u.noise(0,x-z*1.6,y+z*0.4,z),0,1,-0.28,0.38);
+        let convectiveWave = map(u.noise(1,x+z*3.2,y,z),0,1,-0.22,0.35);
+        let tropicalBand = map(y,HEIGHT*0.48,HEIGHT*0.94,0,0.22,true);
+        let v = map(moisture,0.5,0.86,0,0.45,true) + lowLevelSpin + broadPulse + convectiveWave + tropicalBand;
+        v -= map(shear,3.5,8,0,0.35,true);
+        return constrain(v,0,1);
+    },
+    displayFormat: v=>{
+        return round(v*100) + '%';
+    },
+    hueMap: v=>{
+        colorMode(HSB);
+        let quiet = color(210,65,78);
+        let active = color(140,80,70);
+        let burst = color(25,95,92);
+        let c = v<0.5 ? lerpColor(quiet,active,map(v,0,0.5,0,1)) :
+            lerpColor(active,burst,map(v,0.5,1,0,1));
+        colorMode(RGB);
+        return c;
+    },
+    oceanic: true,
+    noiseChannels: [
+        [5,0.55,190,420,0.65,2.3],
+        [4,0.5,80,130,1.4,3.1]
+    ]
+};
+
 // -- oceanHeat -- //
 
 ENV_DEFS[SIM_MODE_CHAOS].oceanHeat = {
@@ -1040,9 +1095,10 @@ ENV_DEFS[SIM_MODE_CHAOS].instability = {
     mapFunc: (u,x,y,z)=>{
         let heat = u.field('oceanHeat');
         let moisture = u.field('moisture');
+        let monsoon = u.field('monsoonPulse');
         let shear = u.field('shear').mag();
         let pulse = map(u.noise(0,x-z*2.2,y+z*0.35,z),0,1,-0.35,0.42);
-        let v = map(heat,0.35,1.05,0,0.5,true) + map(moisture,0.45,0.85,0,0.38,true) + pulse;
+        let v = map(heat,0.35,1.05,0,0.5,true) + map(moisture,0.45,0.85,0,0.38,true) + monsoon*0.24 + pulse;
         v -= map(shear,2.2,7.5,0,0.45,true);
         return constrain(v,0,1);
     },
@@ -1141,11 +1197,14 @@ STORM_ALGORITHM.defaults.steering = function(sys,vec,u){
 
 STORM_ALGORITHM[SIM_MODE_CHAOS].steering = function(sys,vec,u){
     STORM_ALGORITHM.defaults.steering(sys,vec,u);
+    let monsoon = u.f("monsoonPulse");
     let beta = map(sys.windSpeed,35,135,0,0.52,true)*map(sys.lowerWarmCore,0.45,1,0,1,true);
     vec.add(-0.22*beta,sys.basin.hem(-0.42*beta));
     let shear = u.f("shear");
     let shearDrag = map(shear.mag(),2,8,0,0.18,true)*map(sys.depth,0.25,0.85,1,0.25,true);
     vec.add(shear.x*shearDrag,shear.y*shearDrag);
+    if(monsoon>0.55)
+        vec.rotate(sys.basin.hem(map(monsoon,0.55,1,0,PI/30,true))*map(sys.depth,0,1,1,0.3,true));
 };
 
 // -- Core -- //
@@ -1215,6 +1274,7 @@ STORM_ALGORITHM[SIM_MODE_CHAOS].core = function(sys,u){
     let SST = u.f("SST");
     let heat = u.f("oceanHeat");
     let instability = u.f("instability");
+    let monsoon = u.f("monsoonPulse");
     let moisture = u.f("moisture");
     let shear = u.f("shear").mag()+sys.interaction.shear;
     let lnd = u.land();
@@ -1224,6 +1284,7 @@ STORM_ALGORITHM[SIM_MODE_CHAOS].core = function(sys,u){
     sys.coreHeat = constrain(sys.coreHeat || 0,0,1.4);
     sys.coldWake = constrain(sys.coldWake || 0,0,4);
     sys.eyewallCycle = constrain(sys.eyewallCycle || 0,0,1.2);
+    sys.satelliteCooldown = max((sys.satelliteCooldown || 0)-1,0);
 
     if(lnd){
         let roughness = map(lnd,0.52,0.92,0,1,true);
@@ -1250,7 +1311,7 @@ STORM_ALGORITHM[SIM_MODE_CHAOS].core = function(sys,u){
         map(sys.organization,0.38,0.86,0,1,true) *
         tropicalness *
         (lnd ? 0 : 1);
-    favorable = constrain(lerp(favorable,instability,0.35),0,1);
+    favorable = constrain(lerp(favorable,instability,0.35)+monsoon*0.12,0,1);
     sys.coreHeat = constrain(lerp(sys.coreHeat,favorable,favorable>sys.coreHeat ? 0.065 : 0.025),0,1.35);
 
     if(!lnd && favorable>0.35 && random()<0.07*favorable){
@@ -1294,6 +1355,12 @@ STORM_ALGORITHM[SIM_MODE_CHAOS].core = function(sys,u){
             sys.windSpeed += random(0.2,1.2)*asymVent;
         }
         sys.organization = lerp(sys.organization,0.28,map(shear,3.5,8,0,0.022,true)*(1-moisture));
+    }
+
+    if(!lnd && monsoon>0.68 && sys.organization<0.75 && random()<0.035*monsoon){
+        sys.organization = constrain(sys.organization+random(0.015,0.055)*monsoon,0,1);
+        sys.lowerWarmCore = lerp(sys.lowerWarmCore,1,0.015*monsoon);
+        sys.pressure -= random(0.4,2.2)*monsoon;
     }
 
     sys.pressure = constrain(sys.pressure,850,1045);
@@ -1417,7 +1484,7 @@ STORM_ALGORITHM[SIM_MODE_WILD].version = 0;
 STORM_ALGORITHM[SIM_MODE_MEGABLOBS].version = 0;
 STORM_ALGORITHM[SIM_MODE_EXPERIMENTAL].version = 1;
 STORM_ALGORITHM[SIM_MODE_SPOOKY].version = 0;
-STORM_ALGORITHM[SIM_MODE_CHAOS].version = 0;
+STORM_ALGORITHM[SIM_MODE_CHAOS].version = 1;
 
 // -- Upgrade -- //
 // Converts active attributes in case an active system is loaded after an algorithm change breaks old values

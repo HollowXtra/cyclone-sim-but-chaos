@@ -11,17 +11,19 @@ class Basin{
         this.godMode = opts.godMode;
         this.SHem = opts.hem;
         this.actMode = opts.actMode || 0;
-        if(SEASON_CURVE[this.actMode])
-            seasonCurve = window[SEASON_CURVE[this.actMode]];
-        else
-            seasonCurve = window[SEASON_CURVE.default];
         if(opts.year !== undefined)
             this.startYear = opts.year;
         else if(this.SHem)
             this.startYear = SHEM_DEFAULT_YEAR;
         else
             this.startYear = NHEM_DEFAULT_YEAR;
+        this.startMonth = opts.startMonth;
+        if(this.startMonth === undefined)
+            this.startMonth = this.SHem ? 6 : 0;
         this.mapType = opts.mapType || 0;
+        this.customMap = {};
+        Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS, opts.customMap || {});
+        this.setSeasonCurve();
         if(MAP_TYPES[this.mapType].form === 'earth'){
             this.mainSubBasin = MAP_TYPES[this.mapType].mainSubBasin;
             this.defineEarthSubBasins();
@@ -201,12 +203,21 @@ class Basin{
 
     startTime(){
         let y = this.startYear;
-        let mo = moment.utc([y]);
-        if(this.SHem){
-            mo.month(6);
+        let mo = moment.utc([y,this.startMonth || 0,1]);
+        if(this.SHem && (this.startMonth || 0)>=6)
             mo.year(y-1);
-        }
         return mo.valueOf();
+    }
+
+    seasonalTick(t){
+        let startMonth = this.startMonth || 0;
+        let monthOffset = this.SHem ? (startMonth + 6) % 12 : startMonth;
+        return t + monthOffset * YEAR_LENGTH / 12;
+    }
+
+    setSeasonCurve(){
+        let curve = window[SEASON_CURVE[this.actMode]] || window[SEASON_CURVE.default];
+        seasonCurve = (t,...args)=>curve(this.seasonalTick(t),...args);
     }
 
     tickMoment(t){
@@ -533,7 +544,9 @@ class Basin{
                 'tick',
                 'seed',
                 'startYear',
-                'actMode'
+                'actMode',
+                'startMonth',
+                'customMap'
             ]) b[p] = this[p];
             return db.transaction('rw',db.saves,db.seasons,()=>{
                 db.saves.put(obj,this.saveName);
@@ -610,8 +623,14 @@ class Basin{
                         for(let p of [
                             'tick',
                             'seed',
-                            'startYear'
+                            'startYear',
+                            'startMonth',
+                            'customMap'
                         ]) this[p] = obj[p];
+                        if(this.startMonth === undefined)
+                            this.startMonth = this.SHem ? 6 : 0;
+                        this.customMap = {};
+                        Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS, obj.customMap || {});
                         if(obj.nameList) oldNameList = obj.nameList;
                         if(obj.sequentialNameIndex!==undefined) oldSeqNameIndex = obj.sequentialNameIndex;
                         if(obj.hypoCats) oldHypoCats = obj.hypoCats;
@@ -661,6 +680,10 @@ class Basin{
                             }
                             if(format<FORMAT_WITH_SAVED_SEASONS) this.lastSaved = this.tick = 0; // resets tick to 0 in basins test-saved in versions prior to full saving including seasons added
                         }
+                        if(this.startMonth === undefined)
+                            this.startMonth = this.SHem ? 6 : 0;
+                        this.customMap = {};
+                        Object.assign(this.customMap, CUSTOM_MAP_DEFAULTS);
                     }
                     if(MAP_TYPES[this.mapType].form === 'earth'){
                         this.mainSubBasin = MAP_TYPES[this.mapType].mainSubBasin;
@@ -678,10 +701,7 @@ class Basin{
                         }
                     }
                     this.env.init(envData);
-                    if(SEASON_CURVE[this.actMode])
-                        seasonCurve = window[SEASON_CURVE[this.actMode]];
-                    else
-                        seasonCurve = window[SEASON_CURVE.default];
+                    this.setSeasonCurve();
                     if(oldNameList){
                         let desSys = DesignationSystem.convertFromOldNameList(oldNameList);
                         if(!desSys.naming.annual)

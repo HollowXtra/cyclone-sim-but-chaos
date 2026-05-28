@@ -1,5 +1,9 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.4.28 (2026-05-27):
+    + Added a custom procedural map type with layout, land amount, coastline chaos, and mountain controls
+    + Added a start month option for new basins
+    + Added monsoon burst potential and satellite vortex spawning to Realistic Chaos mode
 v0.4.27 (2026-05-27):
     * Fixed the Windows app leaving the simulator stuck in the top-left corner of larger windows
 v0.4.26 (2026-05-27):
