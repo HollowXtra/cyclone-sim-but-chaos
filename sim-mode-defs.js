@@ -1,12 +1,13 @@
 // ---- Simulation Modes ---- //
 
-const SIMULATION_MODES = ['Normal','Hyper','Wild','Megablobs','Experimental','Spooky']; // Labels for sim mode selector UI
+const SIMULATION_MODES = ['Normal','Hyper','Wild','Megablobs','Experimental','Spooky','Realistic Chaos']; // Labels for sim mode selector UI
 const SIM_MODE_NORMAL = 0;
 const SIM_MODE_HYPER = 1;
 const SIM_MODE_WILD = 2;
 const SIM_MODE_MEGABLOBS = 3;
 const SIM_MODE_EXPERIMENTAL = 4;
 const SIM_MODE_SPOOKY = 5;
+const SIM_MODE_CHAOS = 6;
 
 // ---- Active Attributes ---- //
 
@@ -30,6 +31,16 @@ ACTIVE_ATTRIBS[SIM_MODE_EXPERIMENTAL] = [
     'kaboom'
 ];
 
+ACTIVE_ATTRIBS[SIM_MODE_CHAOS] = [
+    'organization',
+    'lowerWarmCore',
+    'upperWarmCore',
+    'depth',
+    'coreHeat',
+    'coldWake',
+    'eyewallCycle'
+];
+
 // ---- Season Curve ---- //
 
 const SEASON_CURVE = {};
@@ -49,6 +60,7 @@ SPAWN_RULES[SIM_MODE_WILD] = {};
 SPAWN_RULES[SIM_MODE_MEGABLOBS] = {};
 SPAWN_RULES[SIM_MODE_EXPERIMENTAL] = {};
 SPAWN_RULES[SIM_MODE_SPOOKY] = {};
+SPAWN_RULES[SIM_MODE_CHAOS] = {};
 
 // -- Defaults -- //
 
@@ -281,6 +293,61 @@ SPAWN_RULES[SIM_MODE_EXPERIMENTAL].doSpawn = SPAWN_RULES[SIM_MODE_HYPER].doSpawn
 
 SPAWN_RULES[SIM_MODE_SPOOKY].doSpawn = SPAWN_RULES.defaults.doSpawn;
 
+// -- Realistic Chaos Mode -- //
+
+SPAWN_RULES[SIM_MODE_CHAOS].archetypes = {
+    'tw': {
+        x: ()=>random(0,WIDTH-1),
+        y: (b)=>b.hemY(random(HEIGHT*0.62,HEIGHT*0.92)),
+        pressure: [1002, 1018],
+        windSpeed: [15, 35],
+        type: TROPWAVE,
+        organization: [0,0.28],
+        lowerWarmCore: 1,
+        upperWarmCore: 1,
+        depth: 0,
+        coreHeat: [0,0.2],
+        coldWake: 0,
+        eyewallCycle: 0
+    }
+};
+
+function chaosSpawnCandidate(b){
+    let best;
+    let bestScore = -Infinity;
+    for(let i=0;i<8;i++){
+        let x = random(0,WIDTH-1);
+        let y = b.hemY(random(HEIGHT*0.58,HEIGHT*0.94));
+        let lnd = land && land.get(Coordinate.convertFromXY(b.mapType,x,y));
+        if(lnd) continue;
+        let heat = b.env.get("oceanHeat",x,y,b.tick);
+        let instability = b.env.get("instability",x,y,b.tick);
+        let shear = b.env.get("shear",x,y,b.tick).mag();
+        let score = heat*0.45 + instability*0.65 - map(shear,1,7,0,0.55,true) + random(-0.15,0.15);
+        if(score > bestScore){
+            bestScore = score;
+            best = {x,y};
+        }
+    }
+    return best;
+}
+
+SPAWN_RULES[SIM_MODE_CHAOS].doSpawn = function(b){
+    let seasonal = sq((seasonCurve(b.tick)+1)/2);
+    let pulse = b.env.get("instability",WIDTH/2,b.hemY(HEIGHT*0.78),b.tick);
+    let spawnChance = 0.006 + 0.017*seasonal*map(pulse,0,1,0.45,1.65);
+    if(random()<spawnChance){
+        let spot = chaosSpawnCandidate(b);
+        if(spot) b.spawnArchetype('tw',spot.x,spot.y);
+        else b.spawnArchetype('tw');
+    }
+    if(random()<0.0035*seasonal*map(pulse,0,1,0.2,1.4)){
+        let spot = chaosSpawnCandidate(b);
+        if(spot) b.spawnArchetype('l',spot.x,spot.y);
+    }
+    if(random()<0.008-0.0015*seasonCurve(b.tick)) b.spawnArchetype('ex');
+};
+
 
 // ---- Definitions of Environmental Fields ---- //
 
@@ -293,6 +360,7 @@ ENV_DEFS[SIM_MODE_WILD] = {};  // "Wild" simulation mode
 ENV_DEFS[SIM_MODE_MEGABLOBS] = {}; // "Megablobs" simulation mode
 ENV_DEFS[SIM_MODE_EXPERIMENTAL] = {}; // "Experimental" simulation mode
 ENV_DEFS[SIM_MODE_SPOOKY] = {}; // "Spooky" simulation mode
+ENV_DEFS[SIM_MODE_CHAOS] = {}; // "Realistic Chaos" simulation mode
 
 // -- Sample Env Field -- //
 
@@ -379,6 +447,17 @@ ENV_DEFS[SIM_MODE_MEGABLOBS].jetstream = {
 };
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].jetstream = {};
 ENV_DEFS[SIM_MODE_SPOOKY].jetstream = {};
+ENV_DEFS[SIM_MODE_CHAOS].jetstream = {
+    modifiers: {
+        peakLat: 0.28,
+        antiPeakLat: 0.5,
+        peakRange: 0.4,
+        antiPeakRange: 0.55
+    },
+    noiseChannels: [
+        [5,0.55,130,260,1.3,2.4]
+    ]
+};
 
 // -- LLSteering -- //
 
@@ -465,6 +544,25 @@ ENV_DEFS[SIM_MODE_WILD].LLSteering = {
 ENV_DEFS[SIM_MODE_MEGABLOBS].LLSteering = {};
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].LLSteering = {};
 ENV_DEFS[SIM_MODE_SPOOKY].LLSteering = {};
+ENV_DEFS[SIM_MODE_CHAOS].LLSteering = {
+    modifiers: {
+        westerlyNoiseRange: 0.42,
+        westerlyJetstreamEffectRange: 0.55,
+        westerlyMax: 4.8,
+        ridgingJetstreamEffectRange: 0.45,
+        tradesRidgingEffectRange: 0.48,
+        tradesMax: 3.5,
+        noiseBase: 1.7,
+        noiseExponentMin: -6,
+        noiseExponentMax: 4.5
+    },
+    noiseChannels: [
+        [5,0.52,70,85,1.25,3.2],
+        '',
+        '',
+        [5,0.5,135,240,1.2,3.1]
+    ]
+};
 
 // -- ULSteering -- //
 
@@ -590,6 +688,25 @@ ENV_DEFS[SIM_MODE_WILD].ULSteering = {
 ENV_DEFS[SIM_MODE_MEGABLOBS].ULSteering = {};
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].ULSteering = {};
 ENV_DEFS[SIM_MODE_SPOOKY].ULSteering = {};
+ENV_DEFS[SIM_MODE_CHAOS].ULSteering = {
+    modifiers: {
+        jetstreamHalfDecay: 34,
+        jetstreamOverpowerBase: 0.68,
+        jetstreamInwardAngle: Math.PI/3.5,
+        troughBase: 1.95,
+        troughExponentMin: -5.5,
+        troughExponentMax: 3.5,
+        hadleyUpperBound: 4.4,
+        hadleyLowerBound: 1.2,
+        noiseBase: 1.7,
+        noiseExponentMin: -6,
+        noiseExponentMax: 4.3
+    },
+    noiseChannels: [
+        [5,0.52,145,260,1.1,2.3],
+        [5,0.5,75,95,1.2,3.2]
+    ]
+};
 
 // -- shear -- //
 
@@ -632,6 +749,7 @@ ENV_DEFS[SIM_MODE_WILD].shear = {};
 ENV_DEFS[SIM_MODE_MEGABLOBS].shear = {};
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].shear = {};
 ENV_DEFS[SIM_MODE_SPOOKY].shear = {};
+ENV_DEFS[SIM_MODE_CHAOS].shear = {};
 
 // -- SSTAnomaly -- //
 
@@ -696,6 +814,16 @@ ENV_DEFS[SIM_MODE_MEGABLOBS].SSTAnomaly = {
 };
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].SSTAnomaly = {};
 ENV_DEFS[SIM_MODE_SPOOKY].SSTAnomaly = {};
+ENV_DEFS[SIM_MODE_CHAOS].SSTAnomaly = {
+    modifiers: {
+        r: 5.5,
+        bigBlobBase: 1.25,
+        bigBlobExponentThreshold: 1.8
+    },
+    noiseChannels: [
+        [6,0.5,120,2400,0.08,1.6]
+    ]
+};
 
 // -- SST -- //
 
@@ -784,6 +912,14 @@ ENV_DEFS[SIM_MODE_EXPERIMENTAL].SST = {
     }
 };
 ENV_DEFS[SIM_MODE_SPOOKY].SST = {};
+ENV_DEFS[SIM_MODE_CHAOS].SST = {
+    modifiers: {
+        offSeasonPolarTemp: -1,
+        peakSeasonPolarTemp: 12,
+        offSeasonTropicsTemp: 26.5,
+        peakSeasonTropicsTemp: 30.2
+    }
+};
 
 // -- moisture -- //
 
@@ -849,6 +985,85 @@ ENV_DEFS[SIM_MODE_WILD].moisture = {
 ENV_DEFS[SIM_MODE_MEGABLOBS].moisture = {};
 ENV_DEFS[SIM_MODE_EXPERIMENTAL].moisture = {};
 ENV_DEFS[SIM_MODE_SPOOKY].moisture = {};
+ENV_DEFS[SIM_MODE_CHAOS].moisture = {
+    modifiers: {
+        polarMoisture: 0.44,
+        tropicalMoisture: 0.66,
+        mountainMoisture: 0.16
+    },
+    noiseChannels: [
+        [5,0.5,90,100,0.45,2.4]
+    ]
+};
+
+// -- oceanHeat -- //
+
+ENV_DEFS[SIM_MODE_CHAOS].oceanHeat = {
+    displayName: 'Ocean heat content',
+    version: 0,
+    mapFunc: (u,x,y,z)=>{
+        let SST = u.field('SST');
+        let tropicalBand = map(y,HEIGHT*0.38,HEIGHT*0.95,0,1,true);
+        let eddy = map(u.noise(0,x-z*1.2,y,z),0,1,-0.35,0.45);
+        let deepWarmth = map(u.noise(1,x+z*0.35,y-z*0.2,z),0,1,-0.2,0.38);
+        let seasonal = map(seasonCurve(z),-1,1,-0.08,0.12);
+        let v = map(SST,24,31.5,0,0.85,true) + 0.18*tropicalBand + eddy + deepWarmth + seasonal;
+        return constrain(v,0,1.25);
+    },
+    displayFormat: v=>{
+        return round(v*100) + '%';
+    },
+    hueMap: v=>{
+        colorMode(HSB);
+        let low = color(220,90,75);
+        let mid = color(55,85,95);
+        let high = color(350,95,85);
+        let extreme = color(305,35,100);
+        let c = v<0.55 ? lerpColor(low,mid,map(v,0,0.55,0,1)) :
+            v<0.95 ? lerpColor(mid,high,map(v,0.55,0.95,0,1)) :
+            lerpColor(high,extreme,map(v,0.95,1.25,0,1));
+        colorMode(RGB);
+        return c;
+    },
+    oceanic: true,
+    noiseChannels: [
+        [5,0.55,130,500,0.16,1.6],
+        [4,0.5,55,1500,0.05,0.8]
+    ]
+};
+
+// -- instability -- //
+
+ENV_DEFS[SIM_MODE_CHAOS].instability = {
+    displayName: 'Convective instability',
+    version: 0,
+    mapFunc: (u,x,y,z)=>{
+        let heat = u.field('oceanHeat');
+        let moisture = u.field('moisture');
+        let shear = u.field('shear').mag();
+        let pulse = map(u.noise(0,x-z*2.2,y+z*0.35,z),0,1,-0.35,0.42);
+        let v = map(heat,0.35,1.05,0,0.5,true) + map(moisture,0.45,0.85,0,0.38,true) + pulse;
+        v -= map(shear,2.2,7.5,0,0.45,true);
+        return constrain(v,0,1);
+    },
+    displayFormat: v=>{
+        return round(v*100) + '%';
+    },
+    hueMap: v=>{
+        colorMode(HSB);
+        let stable = color(230,75,75);
+        let marginal = color(90,70,80);
+        let explosive = color(0,95,85);
+        let c = v<0.45 ? lerpColor(stable,marginal,map(v,0,0.45,0,1)) :
+            lerpColor(marginal,explosive,map(v,0.45,1,0,1));
+        colorMode(RGB);
+        return c;
+    },
+    oceanic: true,
+    noiseChannels: [
+        [5,0.55,180,260,0.9,2.7]
+    ]
+};
 
 // ---- Active Storm System Algorithm ---- //
 
@@ -861,6 +1076,7 @@ STORM_ALGORITHM[SIM_MODE_WILD] = {};
 STORM_ALGORITHM[SIM_MODE_MEGABLOBS] = {};
 STORM_ALGORITHM[SIM_MODE_EXPERIMENTAL] = {};
 STORM_ALGORITHM[SIM_MODE_SPOOKY] = {};
+STORM_ALGORITHM[SIM_MODE_CHAOS] = {};
 
 // -- Interaction -- //
 
@@ -890,6 +1106,27 @@ STORM_ALGORITHM.defaults.interaction = function(sys0, sys1){
     return interactionData;
 };
 
+STORM_ALGORITHM[SIM_MODE_CHAOS].interaction = function(sys0, sys1){
+    let interactionData = STORM_ALGORITHM.defaults.interaction(sys0, sys1);
+    let v = createVector();
+    v.set(sys0.pos);
+    v.sub(sys1.pos);
+    let m = v.mag();
+    let strongWarmCore = max(sys0.lowerWarmCore,sys1.lowerWarmCore);
+    let r = map(strongWarmCore,0,1,190,75);
+    r += map(max(sys0.windSpeed,sys1.windSpeed),35,150,0,55,true);
+    if(m<r && m>0){
+        if(!interactionData.fuji) interactionData.fuji = createVector();
+        v.rotate(sys0.basin.hem(-TAU/4+((4/m)*TAU/16)));
+        v.setMag(map(m,r,0,0,map(constrain(sys1.pressure,1005,880),1005,880,0.8,3.7)));
+        interactionData.fuji.add(v);
+        interactionData.shear = (interactionData.shear || 0) + map(m,r,0,0,map(sys1.windSpeed,35,160,0.2,8,true));
+        if(m<r*0.18 && sys0.pressure>sys1.pressure+6)
+            interactionData.kill = 1;
+    }
+    return interactionData;
+};
+
 // -- Steering -- //
 
 STORM_ALGORITHM.defaults.steering = function(sys,vec,u){
@@ -900,6 +1137,15 @@ STORM_ALGORITHM.defaults.steering = function(sys,vec,u){
     let y = lerp(ll.y,ul.y,d);
     vec.set(x,y);
     vec.add(sys.interaction.fuji);
+};
+
+STORM_ALGORITHM[SIM_MODE_CHAOS].steering = function(sys,vec,u){
+    STORM_ALGORITHM.defaults.steering(sys,vec,u);
+    let beta = map(sys.windSpeed,35,135,0,0.52,true)*map(sys.lowerWarmCore,0.45,1,0,1,true);
+    vec.add(-0.22*beta,sys.basin.hem(-0.42*beta));
+    let shear = u.f("shear");
+    let shearDrag = map(shear.mag(),2,8,0,0.18,true)*map(sys.depth,0.25,0.85,1,0.25,true);
+    vec.add(shear.x*shearDrag,shear.y*shearDrag);
 };
 
 // -- Core -- //
@@ -960,6 +1206,103 @@ STORM_ALGORITHM.defaults.core = function(sys,u){
     sys.depth = lerp(sys.depth,targetDepth,0.05);
 
     if(sys.pressure > 1030 || sys.interaction.kill > 0)
+        sys.kill = true;
+};
+
+STORM_ALGORITHM[SIM_MODE_CHAOS].core = function(sys,u){
+    STORM_ALGORITHM.defaults.core(sys,u);
+
+    let SST = u.f("SST");
+    let heat = u.f("oceanHeat");
+    let instability = u.f("instability");
+    let moisture = u.f("moisture");
+    let shear = u.f("shear").mag()+sys.interaction.shear;
+    let lnd = u.land();
+    let tropicalness = constrain(map(sys.lowerWarmCore,0.5,1,0,1),0,sys.upperWarmCore);
+    let moveSpeed = sys.steering.mag();
+
+    sys.coreHeat = constrain(sys.coreHeat || 0,0,1.4);
+    sys.coldWake = constrain(sys.coldWake || 0,0,4);
+    sys.eyewallCycle = constrain(sys.eyewallCycle || 0,0,1.2);
+
+    if(lnd){
+        let roughness = map(lnd,0.52,0.92,0,1,true);
+        sys.organization = lerp(sys.organization,0,0.025+0.07*roughness);
+        sys.lowerWarmCore = lerp(sys.lowerWarmCore,0.35,0.04+0.08*roughness);
+        sys.upperWarmCore = lerp(sys.upperWarmCore,sys.lowerWarmCore,0.08+0.1*roughness);
+        sys.pressure += 0.7+3.2*roughness;
+        sys.windSpeed = lerp(sys.windSpeed,20,0.015+0.035*roughness);
+        sys.coldWake = lerp(sys.coldWake,0,0.2);
+    }else{
+        let cooling = map(sys.windSpeed,45,150,0,0.06,true)*map(moveSpeed,0.15,2.4,1.35,0.15,true)*tropicalness;
+        sys.coldWake = constrain(sys.coldWake + cooling - map(heat,0.3,1.05,0.035,0.006,true),0,4);
+        if(sys.coldWake>0.45){
+            sys.organization = lerp(sys.organization,0.2,map(sys.coldWake,0.45,3.6,0,0.04,true)*tropicalness);
+            sys.pressure += map(sys.coldWake,0.45,3.6,0,2.4,true)*tropicalness;
+        }
+    }
+
+    let effectiveSST = SST - sys.coldWake;
+    let favorable = map(effectiveSST,26.2,30.5,0,1,true) *
+        map(heat,0.42,1.05,0,1,true) *
+        map(moisture,0.55,0.88,0,1,true) *
+        map(shear,4.2,0.7,0,1,true) *
+        map(sys.organization,0.38,0.86,0,1,true) *
+        tropicalness *
+        (lnd ? 0 : 1);
+    favorable = constrain(lerp(favorable,instability,0.35),0,1);
+    sys.coreHeat = constrain(lerp(sys.coreHeat,favorable,favorable>sys.coreHeat ? 0.065 : 0.025),0,1.35);
+
+    if(!lnd && favorable>0.35 && random()<0.07*favorable){
+        let burst = random(0.6,2.8)*favorable*(0.45+sys.coreHeat);
+        sys.organization = constrain(sys.organization+random(0.01,0.04)*favorable,0,1);
+        sys.pressure -= burst;
+        sys.windSpeed += random(0.4,1.8)*favorable*(0.5+sys.coreHeat);
+        sys.depth = lerp(sys.depth,max(sys.depth,0.72),0.025*favorable);
+    }
+
+    if(!lnd && sys.coreHeat>0.72 && sys.organization>0.72 && sys.pressure<995 && sys.pressure>875 && random()<0.016*sys.coreHeat){
+        sys.pressure -= random(3,8)*sys.coreHeat;
+        sys.windSpeed += random(1.5,4.5)*sys.coreHeat;
+        sys.depth = lerp(sys.depth,0.82,0.05);
+    }
+
+    if(!lnd && sys.eyewallCycle===0 && sys.windSpeed>105 && sys.organization>0.75 && random()<map(sys.windSpeed,105,165,0.002,0.012,true)){
+        sys.eyewallCycle = random(0.02,0.08);
+    }
+    if(sys.eyewallCycle>0){
+        let phase = sys.eyewallCycle;
+        if(phase<0.55){
+            let weakening = map(phase,0,0.55,0.4,2.8);
+            sys.pressure += weakening;
+            sys.windSpeed -= map(phase,0,0.55,0.4,2.1);
+            sys.organization = lerp(sys.organization,0.62,0.018);
+        }else{
+            let recovery = map(phase,0.55,1,0.3,1.6,true);
+            sys.pressure -= recovery*map(heat,0.45,1.1,0.3,1,true);
+            sys.windSpeed += recovery*0.45;
+            sys.organization = lerp(sys.organization,0.9,0.012);
+        }
+        sys.eyewallCycle += random(0.018,0.04);
+        if(sys.eyewallCycle>=1) sys.eyewallCycle = 0;
+    }
+
+    if(!lnd && shear>3.1){
+        let asymVent = map(moisture,0.58,0.9,0.25,1,true)*map(effectiveSST,26,30,0,1,true);
+        if(random()<0.035*asymVent && shear<5.2){
+            sys.pressure -= random(0.3,1.6)*asymVent;
+            sys.windSpeed += random(0.2,1.2)*asymVent;
+        }
+        sys.organization = lerp(sys.organization,0.28,map(shear,3.5,8,0,0.022,true)*(1-moisture));
+    }
+
+    sys.pressure = constrain(sys.pressure,850,1045);
+    sys.windSpeed = max(0,sys.windSpeed);
+    sys.organization = constrain(sys.organization,0,1);
+    sys.lowerWarmCore = constrain(sys.lowerWarmCore,0,1);
+    sys.upperWarmCore = constrain(sys.upperWarmCore,0,1);
+    sys.depth = constrain(sys.depth,0,1);
+    if(sys.pressure > 1035 || sys.interaction.kill > 0)
         sys.kill = true;
 };
 
@@ -1074,6 +1417,7 @@ STORM_ALGORITHM[SIM_MODE_WILD].version = 0;
 STORM_ALGORITHM[SIM_MODE_MEGABLOBS].version = 0;
 STORM_ALGORITHM[SIM_MODE_EXPERIMENTAL].version = 1;
 STORM_ALGORITHM[SIM_MODE_SPOOKY].version = 0;
+STORM_ALGORITHM[SIM_MODE_CHAOS].version = 0;
 
 // -- Upgrade -- //
 // Converts active attributes in case an active system is loaded after an algorithm change breaks old values

@@ -1,5 +1,9 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.4.26 (2026-05-27):
+    + Added "Realistic Chaos" simulation mode
+        > Adds ocean heat content and convective instability environmental layers
+        > Adds rapid intensification bursts, cold-wake weakening, eyewall replacement cycles, stronger Fujiwhara interaction, and terrain disruption
 v0.4.25 (2026-05-14):
     * Updated name lists for North Atlantic, Western Pacific, PAGASA, Australian Region, South-West Indian Ocean, South Pacific, and Mediterranean
 v0.4.24 (2025-08-20):
