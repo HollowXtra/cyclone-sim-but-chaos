@@ -1229,7 +1229,16 @@ STORM_ALGORITHM.defaults.steering = function(sys,vec,u){
     let d = sqrt(sys.depth);
     let x = lerp(ll.x,ul.x,d);       // Deeper systems follow upper-level steering more and lower-level steering less
     let y = lerp(ll.y,ul.y,d);
-    vec.set(x,y);
+    let prev = vec.copy();
+    let target = createVector(x,y);
+    let warmCore = constrain(((sys.lowerWarmCore || 0) + (sys.upperWarmCore || 0))/2,0,1);
+    let beta = map(sys.windSpeed,35,150,0,0.24,true)*map(warmCore,0.35,1,0,1,true)*map(sys.depth,0,1,1,0.45,true);
+    target.add(-0.08*beta,sys.basin.hem(-0.18*beta));
+    let lnd = u.land();
+    if(lnd)
+        target.mult(map(lnd,0,1,0.94,0.72,true));
+    let momentum = map(prev.mag(),0,8,0.08,0.22,true);
+    vec.set(lerp(target.x,prev.x,momentum),lerp(target.y,prev.y,momentum));
     vec.add(sys.interaction.fuji);
 };
 

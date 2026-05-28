@@ -29,13 +29,14 @@ var paused,
     seasonCurve;
 
 function setup(){
-    setVersion(TITLE + " v",VERSION_NUMBER);
-    document.title = TITLE;
+    setVersion(TITLE + " ",VERSION_LABEL);
+    document.title = TITLE + " " + VERSION_LABEL;
 
     setupDatabase();
 
     createCanvas(WIDTH,HEIGHT);
     defineColors(); // Set the values of COLORS since color() can't be used before setup()
+    textFont(APP_FONT);
     background(COLORS.bg);
     paused = false;
     waitingFor = 0;
@@ -238,11 +239,11 @@ class Settings{
     }
 
     static order(){
-        return ["colorScheme","speedUnit","smoothLandColor","showMagGlass","snowLayers","useShadows","trackMode","showStrength","doAutosave"];    // add new settings to the beginning of this array
+        return ["forecastMode","lofiMusic","colorScheme","speedUnit","smoothLandColor","showMagGlass","snowLayers","useShadows","trackMode","showStrength","doAutosave"];    // add new settings to the beginning of this array
     }
 
     static defaults(){
-        return [0,0,true,false,2,false,0,false,true];  // add new defaults to the beginning of this array
+        return [false,true,0,0,true,false,2,false,0,false,true];  // add new defaults to the beginning of this array
     }
 
     save(){

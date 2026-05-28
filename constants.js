@@ -1,7 +1,9 @@
-const TITLE = "Cyclone Simulator";
-const VERSION_NUMBER = "0.4.30";
+const TITLE = "Cyclone Sim+";
+const VERSION_NUMBER = "0.5.0-alpha.1";
+const VERSION_LABEL = "Alpha 0.5.0";
+const APP_FONT = "Segoe UI";
 
-const SAVE_FORMAT = 10;  // Format #10 in use starting in v0.4.30
+const SAVE_FORMAT = 11;  // Format #11 in use starting in v0.5.0-alpha.1
 const EARLIEST_COMPATIBLE_FORMAT = 0;
 const ENVDATA_COMPATIBLE_FORMAT = 0;
 
@@ -333,8 +335,9 @@ const FORMAT_WITH_LONG_LAT = 7;
 const FORMAT_WITH_CUSTOM_MAPS = 8;
 const FORMAT_WITH_LANDFALL_MARKERS = 9;
 const FORMAT_WITH_ENSO = 10;
+const FORMAT_ALPHA_PLUS = 11;
 
-const GLOBAL_CHAT_TOPIC = "cyclone-sim-but-chaos-global-v1";
+const GLOBAL_CHAT_TOPIC = "cyclone-sim-plus-global-alpha-v1";
 const GLOBAL_CHAT_MAX_MESSAGES = 45;
 const GLOBAL_CHAT_NAME_KEY = "cyclone-sim-global-chat-name";
 
@@ -436,6 +439,7 @@ const HELP_TEXT = "Keyboard Controls:\n" +
     "\t\tSPACE - Pause/resume simulation\n" +
     "\t\tA - Step simulation one hour while paused\n" +
     "\t\tE - Cycle through map layers\n" +
+    "\t\tF - Toggle forecast mode and warning overlay\n" +
     "\t\tT - Cycle through track display modes\n" +
     "\t\tW - Toggle intensity indicators below storm icons (kts / hPa)\n" +
     "\t\tM - Toggle magnifying glass for map layers\n" +
@@ -497,4 +501,13 @@ function defineColors(){    // Since p5 color() function doesn't work until setu
     COLORS.cityLabel = color(255,248,205);
     COLORS.cityDot = color(30,35,45);
     COLORS.landfallMarker = color(255,126,28);
+    COLORS.warning = {};
+    COLORS.warning.tsWatch = color(255,220,65,215);
+    COLORS.warning.tsWarning = color(45,150,255,220);
+    COLORS.warning.huWatch = color(255,115,195,220);
+    COLORS.warning.huWarning = color(230,35,30,225);
+    COLORS.warning.surgeWatch = color(160,95,255,220);
+    COLORS.warning.surgeWarning = color(255,135,35,225);
+    COLORS.warning.forecastCone = color(255,255,255,42);
+    COLORS.warning.forecastLine = color(255,255,255,190);
 }

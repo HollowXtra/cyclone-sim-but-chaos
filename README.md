@@ -1,4 +1,4 @@
-# cyclone-sim
+# Cyclone Sim+
 A p5.js tropical cyclone simulation game
 
 ## Windows app
@@ -15,4 +15,4 @@ The local Windows installer and portable build are written to `dist/`.
 
 ## GitHub Releases
 
-Pushing a version tag such as `v0.4.30` runs the Windows release workflow. The workflow builds the app and uploads the installer/portable `.exe` files to a draft GitHub Release.
+Pushing a version tag such as `v0.5.0-alpha.1` runs the Windows release workflow. The workflow builds the app and uploads the installer/portable `.exe` files to a draft GitHub Release.

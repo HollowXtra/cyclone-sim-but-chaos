@@ -2,7 +2,7 @@ const { app, BrowserWindow, Menu, shell } = require('electron');
 const path = require('path');
 const { fileURLToPath } = require('url');
 
-const appId = 'com.hollowxtra.cyclonesimbutchaos';
+const appId = 'com.hollowxtra.cyclonesimplus';
 let mainWindow;
 
 function appPath(...parts) {
@@ -132,6 +132,7 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
+  app.setName('Cyclone Sim+');
   app.setAppUserModelId(appId);
 
   app.on('second-instance', () => {

@@ -1,4 +1,10 @@
 function refreshTracks(force){
+    if(simSettings.trackMode===4){
+        tracks.clear();
+        forecastTracks.clear();
+        if(selectedStorm) selectedStorm.renderTrack();
+        return;
+    }
     if(simSettings.trackMode===2 && !force) return;
     tracks.clear();
     forecastTracks.clear();
@@ -15,6 +21,7 @@ function createBuffer(w,h,alwaysFull,noScale){
     w = w || WIDTH;
     h = h || HEIGHT;
     let b = createGraphics(w,h);
+    b.textFont(APP_FONT);
     let metadata = {
         baseWidth: w,
         baseHeight: h,

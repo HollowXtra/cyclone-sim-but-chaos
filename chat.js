@@ -89,7 +89,7 @@ const GlobalChat = {
         }catch(e){
             return;
         }
-        if(!payload || payload.app !== "cyclone-sim-but-chaos" || payload.type !== "chat") return;
+        if(!payload || payload.app !== "cyclone-sim-plus" || payload.type !== "chat") return;
         if(payload.id && this.seen[payload.id]) return;
         if(payload.id) this.seen[payload.id] = true;
         this.addMessage(payload.name,payload.text,payload.time,payload.sender === this.clientId());
@@ -140,7 +140,7 @@ const GlobalChat = {
         }
         name = this.setName(name);
         let payload = {
-            app: "cyclone-sim-but-chaos",
+            app: "cyclone-sim-plus",
             type: "chat",
             id: Date.now().toString(36) + "-" + floor(random(100000,999999)).toString(36),
             sender: this.clientId(),

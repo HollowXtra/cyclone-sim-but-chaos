@@ -1,5 +1,12 @@
 About: A p5.js tropical cyclone simulation game
 
+v0.5.0-alpha.1 (2026-05-28):
+    + Renamed the app to Cyclone Sim+ and moved builds to alpha versioning
+    + Added Forecast Mode with forecast tracks, uncertainty cones, and NHC-inspired city warning tags
+    + Added Single Storm track mode for focused storm tracking
+    + Added synthesized button click sounds and generated lo-fi background music
+    * Smoothed hurricane movement with momentum, land slowdown, and beta-drift-style steering tweaks
+    * Refined the menu styling and switched to a cleaner Windows UI font
 v0.4.30 (2026-05-28):
     + Added El Nino, La Nina, Neutral, and Auto ENSO basin settings
     + ENSO now affects tropical wave spawning, shear, humidity, SST anomalies, and basin-specific genesis shifts

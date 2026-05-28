@@ -289,6 +289,8 @@ UI.click = function(){
         UI.focusedInput = undefined;
     }
     if(UI.mouseOver){
+        if(!UI.mouseOver.isInput && typeof GameAudio !== "undefined")
+            GameAudio.click();
         UI.mouseOver.clicked();
         return true;
     }
@@ -437,6 +439,161 @@ UI.init = function(){
                 text(lines[i],x+7,y+5+i*15);
         }
     };
+
+    let forecastStormList = ()=>{
+        if(!(UI.viewBasin instanceof Basin) || !UI.viewBasin.viewingPresent()) return [];
+        if(selectedStorm instanceof Storm && selectedStorm.current) return [selectedStorm];
+        let storms = [];
+        for(let s of UI.viewBasin.activeSystems){
+            let storm = s.fetchStorm();
+            if(storm instanceof Storm && storm.current){
+                let data = storm.getStormDataByTick(viewTick,true);
+                if(storm.TC || data && (tropOrSub(data.type) || data.windSpeed>=34))
+                    storms.push(storm);
+            }
+        }
+        return storms;
+    };
+
+    let forecastPointSet = storm=>{
+        if(!(storm instanceof Storm) || !storm.current) return [];
+        let data = storm.getStormDataByTick(viewTick,true);
+        if(!data) return [];
+        let pts = [{x: data.pos.x, y: data.pos.y, hour: 0, wind: data.windSpeed}];
+        let forecast = storm.current.trackForecast || [];
+        for(let i=0;i<forecast.length;i++){
+            let p = forecast[i];
+            if(!p) continue;
+            let hour = (i+1)*ADVISORY_TICKS;
+            pts.push({
+                x: p.x,
+                y: p.y,
+                hour,
+                wind: max(20,data.windSpeed - max(0,hour-24)*0.28)
+            });
+        }
+        return pts;
+    };
+
+    let warnRadius = (wind,hurricane)=>{
+        if(hurricane) return map(wind,64,165,24,92,true);
+        return map(wind,34,165,42,142,true);
+    };
+
+    let forecastWarningForCity = (city,storms)=>{
+        let best;
+        let bestRank = -1;
+        for(let storm of storms){
+            let pts = forecastPointSet(storm);
+            for(let p of pts){
+                if(p.hour < 1 || p.hour > 72) continue;
+                let d = dist(city.x,city.y,p.x,p.y);
+                let candidates = [];
+                if(p.wind >= 64){
+                    if(p.hour <= 36 && d <= warnRadius(p.wind,true))
+                        candidates.push({rank: 5,key: "HUW",label: "Hurricane Warning",color: COLORS.warning.huWarning,storm,hour: p.hour});
+                    else if(p.hour <= 48 && d <= warnRadius(p.wind,true)*1.2)
+                        candidates.push({rank: 4,key: "HUA",label: "Hurricane Watch",color: COLORS.warning.huWatch,storm,hour: p.hour});
+                    if(p.hour <= 36 && d <= warnRadius(p.wind,false)*0.95)
+                        candidates.push({rank: 6,key: "SSW",label: "Surge Warning",color: COLORS.warning.surgeWarning,storm,hour: p.hour});
+                    else if(p.hour <= 48 && d <= warnRadius(p.wind,false)*1.08)
+                        candidates.push({rank: 3,key: "SSA",label: "Surge Watch",color: COLORS.warning.surgeWatch,storm,hour: p.hour});
+                }
+                if(p.wind >= 34){
+                    if(p.hour <= 36 && d <= warnRadius(p.wind,false))
+                        candidates.push({rank: 2,key: "TSW",label: "Tropical Storm Warning",color: COLORS.warning.tsWarning,storm,hour: p.hour});
+                    else if(p.hour <= 48 && d <= warnRadius(p.wind,false)*1.18)
+                        candidates.push({rank: 1,key: "TSA",label: "Tropical Storm Watch",color: COLORS.warning.tsWatch,storm,hour: p.hour});
+                }
+                for(let c of candidates){
+                    if(c.rank > bestRank || c.rank === bestRank && (!best || c.hour < best.hour)){
+                        best = c;
+                        bestRank = c.rank;
+                    }
+                }
+            }
+        }
+        return best;
+    };
+
+    let renderForecastOverlay = ()=>{
+        if(!simSettings.forecastMode || !(UI.viewBasin instanceof Basin) || !UI.viewBasin.viewingPresent()) return;
+        let storms = forecastStormList();
+        if(storms.length < 1) return;
+        push();
+        for(let storm of storms){
+            let pts = forecastPointSet(storm);
+            if(pts.length < 2) continue;
+            noFill();
+            stroke(COLORS.warning.forecastLine);
+            strokeWeight(selectedStorm === storm ? 2.5 : 1.5);
+            beginShape();
+            for(let p of pts) vertex(p.x,p.y);
+            endShape();
+            noStroke();
+            for(let i=1;i<pts.length;i++){
+                let p = pts[i];
+                if(![12,24,36,48,60,72,96,120].includes(p.hour)) continue;
+                let r = p.hour * (selectedStorm === storm ? 0.72 : 0.52);
+                fill(COLORS.warning.forecastCone);
+                ellipse(p.x,p.y,r*1.15,r*0.78);
+                fill(255,255,255,210);
+                ellipse(p.x,p.y,4,4);
+                if(p.hour%24===0){
+                    fill(255,255,255,225);
+                    textAlign(CENTER,BOTTOM);
+                    textSize(10);
+                    text(p.hour+"h",p.x,p.y-5);
+                }
+            }
+        }
+        if(land && land.cityLabels){
+            textSize(10);
+            textStyle(BOLD);
+            for(let city of land.cityLabels){
+                let warning = forecastWarningForCity(city,storms);
+                if(!warning) continue;
+                let label = warning.key;
+                let w = textWidth(label)+10;
+                let x = constrain(city.x+8,3,WIDTH-w-3);
+                let y = constrain(city.y+8,33,HEIGHT-48);
+                fill(warning.color);
+                stroke(0,180);
+                strokeWeight(1);
+                rect(x,y,w,15,4);
+                noStroke();
+                fill(0);
+                textAlign(CENTER,CENTER);
+                text(label,x+w/2,y+7);
+            }
+            textStyle(NORMAL);
+        }
+        let legend = [
+            ["HUW",COLORS.warning.huWarning],
+            ["HUA",COLORS.warning.huWatch],
+            ["TSW",COLORS.warning.tsWarning],
+            ["TSA",COLORS.warning.tsWatch],
+            ["SSW",COLORS.warning.surgeWarning]
+        ];
+        let lx = WIDTH-174;
+        let ly = HEIGHT-122;
+        fill(COLORS.UI.menuPanel);
+        stroke(255,255,255,55);
+        rect(lx,ly,166,82,6);
+        noStroke();
+        fill(COLORS.UI.menuText);
+        textAlign(LEFT,TOP);
+        textSize(12);
+        text("Forecast Mode",lx+9,ly+7);
+        textSize(10);
+        for(let i=0;i<legend.length;i++){
+            fill(legend[i][1]);
+            rect(lx+10,ly+25+i*10,24,7,2);
+            fill(COLORS.UI.menuText);
+            text(legend[i][0],lx+40,ly+22+i*10);
+        }
+        pop();
+    };
     primaryWrapper = new UI(null,0,0,WIDTH,HEIGHT,function(s){
         if(UI.viewBasin instanceof Basin){
             let basin = UI.viewBasin;
@@ -487,6 +644,7 @@ UI.init = function(){
             renderLandfallMarkers();
             drawBuffer(tracks);
             drawBuffer(forecastTracks);
+            renderForecastOverlay();
             drawBuffer(stormIcons);
         }
     },function(){
@@ -676,10 +834,10 @@ UI.init = function(){
         textStyle(NORMAL);
         textSize(18);
         fill(COLORS.UI.menuMuted);
-        text("Chaos forecast desk",2,62);
+        text("Forecast lab",2,62);
         textSize(13);
         fill(COLORS.UI.accent);
-        text("v" + VERSION_NUMBER,2,92);
+        text(VERSION_LABEL,2,92);
     },true);
 
     introMenu.append(false,70,260,220,44,function(s){
@@ -717,10 +875,10 @@ UI.init = function(){
         textStyle(NORMAL);
         fill(COLORS.UI.menuMuted);
         textSize(15);
-        text("v" + VERSION_NUMBER + "  |  Command Menu",2,58);
+        text(VERSION_LABEL + "  |  Command Menu",2,58);
     },true);
 
-    mainMenu.append(false,58,175,260,248,function(){
+    mainMenu.append(false,58,175,260,300,function(){
         fill(COLORS.UI.menuPanel);
         stroke(255,255,255,55);
         rect(0,0,this.width,this.height,8);
@@ -728,14 +886,14 @@ UI.init = function(){
         fill(COLORS.UI.menuText);
         textAlign(LEFT,TOP);
         textSize(18);
-        text("Forecast Desk",18,16);
+        text("Forecast Lab",18,16);
         fill(COLORS.UI.menuMuted);
         textSize(12);
         text("Ready",20,42);
     },true);
 
     mainMenu.append(false,78,240,220,38,function(s){
-        s.button('New Basin',true,20);
+        s.button('New Simulation',true,20);
     },function(){
         mainMenu.hide();
         basinCreationMenu.show();
@@ -749,6 +907,11 @@ UI.init = function(){
         s.button('Global Chat',true,20);
     },function(){
         globalChatPanel.show();
+    }).append(false,0,50,220,38,function(s){
+        s.button('Lo-fi: '+(simSettings.lofiMusic === false ? 'Off' : 'On'),true,20);
+    },function(){
+        simSettings.setLofiMusic("toggle");
+        GameAudio.setMusicEnabled(simSettings.lofiMusic !== false);
     }).append(false,0,50,220,38,function(s){
         s.button('Settings',true,20);
     },function(){
@@ -1209,35 +1372,41 @@ UI.init = function(){
         s.button("Intensity Indicator: "+b,true);
     },function(){
         simSettings.setShowStrength("toggle");
-    }).append(false,0,37,300,30,function(s){     // autosaving
+    }).append(false,0,32,300,30,function(s){     // autosaving
         let b = simSettings.doAutosave ? "Enabled" : "Disabled";
         s.button("Autosaving: "+b,true);
     },function(){
         simSettings.setDoAutosave("toggle");
-    }).append(false,0,37,300,30,function(s){     // track mode
-        let m = ["Active TC Tracks","Full Active Tracks","Season Summary","No Tracks"][simSettings.trackMode];
+    }).append(false,0,32,300,30,function(s){     // track mode
+        let m = ["Active TC Tracks","Full Active Tracks","Season Summary","No Tracks","Single Storm"][simSettings.trackMode];
         s.button("Track Mode: "+m,true);
     },function(){
-        simSettings.setTrackMode("incmod",4);
+        simSettings.setTrackMode("incmod",5);
         refreshTracks(true);
-    }).append(false,0,37,300,30,function(s){     // snow
+    }).append(false,0,32,300,30,function(s){     // forecast mode
+        let b = simSettings.forecastMode ? "Enabled" : "Disabled";
+        s.button("Forecast Mode: "+b,true);
+    },function(){
+        simSettings.setForecastMode("toggle");
+        refreshTracks(true);
+    }).append(false,0,32,300,30,function(s){     // snow
         let b = simSettings.snowLayers ? (simSettings.snowLayers*10) + " layers" : "Disabled";
         s.button("Snow: "+b,true);
     },function(){
         simSettings.setSnowLayers("incmod",floor(MAX_SNOW_LAYERS/10)+1);
         if(land) land.clearSnow();
-    }).append(false,0,37,300,30,function(s){     // shadows (NOT a shader O~O)
+    }).append(false,0,32,300,30,function(s){     // shadows (NOT a shader O~O)
         let b = simSettings.useShadows ? "Enabled" : "Disabled";
         s.button("Land Shadows: "+b,true);
     },function(){
         simSettings.setUseShadows("toggle");
-    }).append(false,0,37,300,30,function(s){     // magnifying glass
+    }).append(false,0,32,300,30,function(s){     // magnifying glass
         let b = simSettings.showMagGlass ? "Enabled" : "Disabled";
         s.button("Magnifying Glass: "+b,true);
     },function(){
         simSettings.setShowMagGlass("toggle");
         if(UI.viewBasin) UI.viewBasin.env.updateMagGlass();
-    }).append(false,0,37,300,30,function(s){     // smooth land color
+    }).append(false,0,32,300,30,function(s){     // smooth land color
         let b = simSettings.smoothLandColor ? "Enabled" : "Disabled";
         s.button("Smooth Land Color: "+b,true);
     },function(){
@@ -1246,17 +1415,23 @@ UI.init = function(){
             // landBuffer.clear();
             land.drawn = false;
         }
-    }).append(false,0,37,300,30,function(s){     // speed unit
+    }).append(false,0,32,300,30,function(s){     // speed unit
         let u = ['kts', 'mph', 'km/h'][simSettings.speedUnit];
         s.button("Windspeed Unit: " + u, true);
     },function(){
         simSettings.setSpeedUnit("incmod", 3);
-    }).append(false,0,37,300,30,function(s){     // color scheme
+    }).append(false,0,32,300,30,function(s){     // color scheme
         let n = COLOR_SCHEMES[simSettings.colorScheme].name;
         s.button("Color Scheme: " + n, true);
     },function(){
         simSettings.setColorScheme("incmod", COLOR_SCHEMES.length);
         refreshTracks(true);
+    }).append(false,0,32,300,30,function(s){     // lo-fi music
+        let b = simSettings.lofiMusic === false ? "Disabled" : "Enabled";
+        s.button("Lo-fi Music: "+b,true);
+    },function(){
+        simSettings.setLofiMusic("toggle");
+        GameAudio.setMusicEnabled(simSettings.lofiMusic !== false);
     });
 
     settingsMenu.append(false,WIDTH/2-150,7*HEIGHT/8-20,300,30,function(s){ // "Back" button
@@ -1895,7 +2070,13 @@ UI.init = function(){
             else
                 txtStr = `${Math.pow(2, simSpeed)}x Speed`;
         }
-        let newW = textWidth(txtStr)+6;
+        let maxW = 285;
+        let fontSize = selectedStorm ? 13 : 18;
+        textSize(fontSize);
+        let displayStr = txtStr;
+        while(textWidth(displayStr)>maxW-6 && displayStr.length>4)
+            displayStr = displayStr.substring(0,displayStr.length-4) + "...";
+        let newW = min(textWidth(displayStr)+6,maxW);
         this.setBox(-newW-5,undefined,newW);
         if(this.isHovered()){
             fill(COLORS.UI.buttonHover);
@@ -1903,7 +2084,7 @@ UI.init = function(){
         }
         fill(COLORS.UI.text);
         textAlign(RIGHT,TOP);
-        text(txtStr,this.width-3,3);
+        text(displayStr,this.width-3,selectedStorm ? 5 : 3);
     },function(){
         if(!selectedStorm){
             paused = !paused;
@@ -2749,7 +2930,12 @@ function keyPressed(){
                 if(UI.viewBasin) UI.viewBasin.env.displayNext();
                 break;
             case "t":
-                simSettings.setTrackMode("incmod",4);
+                simSettings.setTrackMode("incmod",5);
+                refreshTracks(true);
+                break;
+            case 'f':
+            case 'F':
+                simSettings.setForecastMode("toggle");
                 refreshTracks(true);
                 break;
             case "m":
